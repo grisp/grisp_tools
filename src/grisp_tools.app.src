@@ -1,15 +1,30 @@
-{application, grisp_tools,
- [{description, "GRiSP tools for building and deployment"},
-  {vsn, "0.1.0"},
-  {registered, []},
-  {applications,
-   [kernel,
-    stdlib
-   ]},
-  {env,[]},
-  {modules, []},
+{application, grisp_tools, [
+    {description, "GRiSP tools for building and deployment"},
+    {vsn, "0.2.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        ssl,
+        inets,
+        mapz
+    ]},
+    {env, [
+        {cdn, "https://s3.amazonaws.com/grisp"}
+    ]},
+    {modules, []},
 
-  {maintainers, []},
-  {licenses, ["Apache 2.0"]},
-  {links, []}
- ]}.
+    {maintainers, ["GRiSP Team <grisp@grisp.org>"]},
+    {licenses, ["Apache 2.0"]},
+    {links, [
+        {"GitHub",
+            "https://github.com/grisp/grisp_tools"
+        },
+        {"Changelog",
+            "https://github.com/grisp/grisp_tools/blob/master/CHANGELOG.md"
+        },
+        {"Homepage",
+            "https://www.grisp.org"
+        }
+    ]}
+]}.
