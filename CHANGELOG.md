@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.2.1](https://github.com/grisp/grisp_tools/tree/0.2.1) (2018-09-11)
+[Full Changelog](https://github.com/grisp/grisp_tools/compare/0.2.0...0.2.1)
+
+**Fixed bugs:**
+
+- Use correct application name for getting environment variables [\#1](https://github.com/grisp/grisp_tools/issues/1)
+
 ## [0.2.0](https://github.com/grisp/grisp_tools/tree/0.2.0) (2018-09-11)
 
 
