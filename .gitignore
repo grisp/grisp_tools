@@ -16,3 +16,7 @@ _build
 .idea
 *.iml
 rebar3.crashdump
+doc/*.html
+doc/edoc-info
+doc/erlang.png
+doc/stylesheet.css
