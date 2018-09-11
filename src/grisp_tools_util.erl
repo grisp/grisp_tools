@@ -23,7 +23,7 @@
 
 % FIXME: Change to grisp_tools when migrated
 env(Key) ->
-    {ok, Value} = application:get_env(rebar3_grisp, Key),
+    {ok, Value} = application:get_env(grisp_tools, Key),
     Value.
 
 cdn_path(otp, #{board := Board} = State) ->
