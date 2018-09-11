@@ -1,6 +1,6 @@
 [![Hex.pm Version][hex version badge]][hex]
 [![Hex.pm License][hex license badge]][hex]
-![Erlang Versions][erlang version badge]
+[![Erlang Versions][erlang version badge]][]
 [![Build Tool][build tool]][hex]
 
 grisp_tools
