@@ -11,7 +11,10 @@ init(Handler, State) -> {Handler, State}.
 
 run(Handler, Args, Handlers) ->
     {Fun, State} = maps:get(Handler, Handlers),
-    {Result, NewState} = apply(Fun, Args ++ [State]),
+    {Result, NewState} = case apply(Fun, Args ++ [State]) of
+        {R, S} -> {R, S};
+        Other  -> error({invalid_handler_return, Handler, Other})
+    end,
     {Result, maps:put(Handler, {Fun, NewState}, Handlers)}.
 
 finalize(_Handler, State) -> State.
