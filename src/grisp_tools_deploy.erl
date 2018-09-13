@@ -208,11 +208,12 @@ copy_release(#{release := Release, copy := Copy} = State0) ->
     #{destination := Dest, force := Force} = Copy,
     Target = filename:join(Dest, RelName),
     State1 = event(State0, {deployment, release, {copy, Source, Target}}),
-    Command = case Force of
+    CopyExe = case Force of
         true  -> "cp -Rf";
         false -> "cp -R"
     end,
-    {Output, State2} = shell(State1, string:join([Command, qoute(Source ++ "/"), qoute(Target)], " ")),
+    Command = string:join([CopyExe, qoute(Source ++ "/"), qoute(Target)], " "),
+    {Output, State2} = shell(State1, Command),
     event(State2, {deployment, release, {copy, {result, Output}}}).
 
 qoute(String) -> "\"" ++ String ++ "\"".
