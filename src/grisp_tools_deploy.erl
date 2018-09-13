@@ -304,7 +304,7 @@ release(State0, Release) ->
             error({invalid_release, Merged})
     end.
 
-shell(State, Script)    -> exec(shell, State, [Script]).
+shell(State, Script) -> exec(shell, State, [Script]).
 
 exec(Handler, #{handlers := Handlers} = State, Args) ->
     {Result, NewHandlers} = grisp_tools_handler:run(Handler, Args, Handlers),
