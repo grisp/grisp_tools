@@ -225,7 +225,7 @@ download_loop(ReqID, #{package := #{tmp := Tmp}} = State0) ->
         download_loop({ReqID, undefined}, Handle, State0, 0)
     end).
 
-download_loop({ReqID, RequestPid}, Handle, State0, Size) ->
+download_loop({ReqID, RequestPid}, Handle, State0, Bytes) ->
     receive
     % Progress:
         {http, {ReqID, stream_start, Headers, Pid}} ->
@@ -236,13 +236,13 @@ download_loop({ReqID, RequestPid}, Handle, State0, Size) ->
             end,
             State1 = event(State0, {package, {download_start, Size}}),
             ok = httpc:stream_next(Pid),
-            download_loop({ReqID, Pid}, Handle, State1, Size);
+            download_loop({ReqID, Pid}, Handle, State1, Bytes);
         {http, {ReqID, stream, BinBodyPart}} ->
-            NewSize = Size + byte_size(BinBodyPart),
-            State1 = event(State0, {package, {download_progress, NewSize}}),
+            NewBytes = Bytes + byte_size(BinBodyPart),
+            State1 = event(State0, {package, {download_progress, NewBytes}}),
             ok = httpc:stream_next(RequestPid),
             ok = file:write(Handle, BinBodyPart),
-            download_loop({ReqID, RequestPid}, Handle, State1, NewSize);
+            download_loop({ReqID, RequestPid}, Handle, State1, NewBytes);
     % Result:
         {http, {ReqID, stream_end, Headers}} ->
             NewETag = case lists:keyfind("etag", 1, Headers) of
