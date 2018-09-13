@@ -13,7 +13,6 @@
 
 run(State) ->
     execute(State, [
-        fun check_args/1,
         fun check_otp_version/1,
         fun calculate_hash/1,
         fun init_otp/1,
@@ -23,16 +22,6 @@ run(State) ->
     ]).
 
 %--- Tasks ---------------------------------------------------------------------
-
-check_args(#{release := Release} = State0) ->
-    case Release of
-        #{name := N, version := V} when N =/= undefined, V =/= undefined ->
-            State0;
-        _Else ->
-            error({release_unspecified, Release})
-    end;
-check_args(State0) ->
-    State0.
 
 check_otp_version(#{otp_version := OTPVersion} = State) ->
     [Major|_] = string:split(OTPVersion, "."),
@@ -60,11 +49,11 @@ init_otp(#{hash := Hash} = State0) ->
 
 make_release(#{install_root := InstallRoot} = State0) ->
     Release = maps:get(release, State0, #{}),
-    State1 = event(State0, {deployment, {release, {start, Release}}}),
-    release(State1, maps:merge(Release, #{otp_root => InstallRoot})).
+    release(State0, maps:merge(Release, #{erts => InstallRoot})).
 
 copy(State0) ->
-    execute(State0, [
+    State1 = event(State0, {deployment, init}),
+    execute(State1, [
         fun(S) -> run_script(pre_script, S) end,
         fun copy_files/1,
         fun copy_release/1,
@@ -303,8 +292,16 @@ event(State0, Event) ->
     State1.
 
 release(State0, Release) ->
-    {Dir, State1} = exec(release, State0, [Release]),
-    mapz:deep_put([release, dir], Dir, State1).
+    State1 = event(State0, {release, {start, Release}}),
+    {Spec, State2} = exec(release, State1, [Release]),
+    case maps:merge(Release, Spec) of
+        #{name := Name, dir := Dir, version := Version} = Merged
+          when length(Name) > 0, length(Dir) > 0, length(Version) > 0 ->
+            State3 = event(State2, {release, {done, Merged}}),
+            mapz:deep_merge(State3, #{release => Merged});
+        Merged ->
+            error({invalid_release, Merged})
+    end.
 
 shell(State, Script)    -> exec(shell, State, [Script]).
 
