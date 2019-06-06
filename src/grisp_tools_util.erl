@@ -34,9 +34,9 @@ cdn_path(otp, #{board := Board} = State) ->
     }).
 
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, build_root) ->
-    filename:join([Root, "otp", OTPVersion, "build"]);
+    filename:join([Root, "_grisp", "otp", OTPVersion, "build"]);
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, install_root) ->
-    filename:join([Root, "otp", OTPVersion, "install"]);
+    filename:join([Root, "_grisp", "otp", OTPVersion, "install"]);
 otp_path(State, install_root) ->
     filename:join([package_dir(), package_name(State)]).
 
