@@ -90,9 +90,10 @@ source_files(Apps, Board) ->
     end, {#{}, #{}, #{}}, Apps).
 
 source_hash(Apps, Board) ->
-    {DriverFiles, SystemFiles} = source_files(Apps, Board),
+    {DriverFiles, SystemFiles, NIFFiles} = source_files(Apps, Board),
     Targets = maps:merge(DriverFiles, SystemFiles),
-    hash_files(Targets).
+    Targets2 = maps:merge(Targets, NIFFiles),
+    hash_files(Targets2).
 
 with_file(File, Opts, Fun) ->
     Handle = case file:open(File, Opts) of
