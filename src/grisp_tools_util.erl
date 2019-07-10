@@ -84,15 +84,16 @@ rm(File) ->
     end.
 
 source_files(Apps, Board) ->
-    lists:foldl(fun({_App, Dir}, {Sys, Drivers}) ->
-        {AppSys, AppDrivers} = collect_c_sources(Dir, Board),
-        {maps:merge(Sys, AppSys), maps:merge(Drivers, AppDrivers)}
-    end, {#{}, #{}}, Apps).
+    lists:foldl(fun({_App, Dir}, {Sys, Drivers, NIFs}) ->
+        {AppSys, AppDrivers, AppNIFs} = collect_c_sources(Dir, Board),
+        {maps:merge(Sys, AppSys), maps:merge(Drivers, AppDrivers), maps:merge(NIFs, AppNIFs)}
+    end, {#{}, #{}, #{}}, Apps).
 
 source_hash(Apps, Board) ->
-    {DriverFiles, SystemFiles} = source_files(Apps, Board),
+    {DriverFiles, SystemFiles, NIFFiles} = source_files(Apps, Board),
     Targets = maps:merge(DriverFiles, SystemFiles),
-    hash_files(Targets).
+    Targets2 = maps:merge(Targets, NIFFiles),
+    hash_files(Targets2).
 
 with_file(File, Opts, Fun) ->
     Handle = case file:open(File, Opts) of
@@ -114,8 +115,8 @@ package_dir() -> filename:join([cache_dir(), "packages", "otp"]).
 collect_c_sources(Dir, Board) ->
     Source = filename:join([Dir, "grisp", Board]),
     case filelib:is_dir(Source) of
-        true  -> {collect_sys(Source), collect_drivers(Source)};
-        false -> {#{}, #{}}
+        true  -> {collect_sys(Source), collect_drivers(Source), collect_nifs(Source)};
+        false -> {#{}, #{}, #{}}
     end.
 
 collect_sys(Source) ->
@@ -135,6 +136,18 @@ collect_drivers(Source) ->
             "erts/emulator/drivers/unix"
         )
     ).
+
+collect_nifs(Source) ->
+    maps:merge(
+      collect_files(
+        {Source, "nifs/*.h"},
+        "erts/emulator/nifs/common"
+       ),
+      collect_files(
+        {Source, "nifs/*.c"},
+        "erts/emulator/nifs/common"
+       )
+     ).
 
 collect_files({SourceRoot, Pattern}, Target) ->
     Files = filelib:wildcard(filename:join(SourceRoot, Pattern)),
