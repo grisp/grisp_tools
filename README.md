@@ -6,7 +6,9 @@
 grisp_tools
 =====
 
-GRiSP tools for building and deployment
+GRiSP tools for building and deployment.
+
+This is a shared library that is used by all package managers in the Erlang ecosystem to create [GRiSP](https://grisp.org/) projects. Currently we have plugins for [Rebar3](https://github.com/grisp/rebar3_grisp) and [Mix](https://github.com/grisp/mix_grisp).
 
 Build
 -----
