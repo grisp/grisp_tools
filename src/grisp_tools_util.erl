@@ -37,8 +37,8 @@ otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion
     filename:join([Root, "_grisp", "otp", OTPVersion, "build"]);
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, install_root) ->
     filename:join([Root, "_grisp", "otp", OTPVersion, "install"]);
-otp_path(State, install_root) ->
-    filename:join([package_dir(), package_name(State)]).
+otp_path(#{board := Board} = State, install_root) ->
+    filename:join([package_dir(), Board, package_name(State)]).
 
 package_name(#{otp_version := OTPVersion, hash := Hash}) ->
     "grisp_otp_build_" ++ OTPVersion ++ "_" ++ Hash.
