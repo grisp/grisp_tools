@@ -28,7 +28,7 @@ env(Key) ->
 
 cdn_path(otp, #{board := Board} = State) ->
     File = grisp_tools_util:package_name(State) ++ ".tar.gz",
-    string:join([env(cdn), "/platforms", Board, "otp", File], "/").
+    string:join([env(cdn), "platforms", Board, "otp", File], "/").
 
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, build_root) ->
     filename:join([Root, "_grisp", "otp", OTPVersion, "build"]);
