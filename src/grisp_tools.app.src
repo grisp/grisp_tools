@@ -15,7 +15,6 @@
     ]},
     {modules, []},
 
-    {maintainers, ["GRiSP Team <grisp@grisp.org>"]},
     {licenses, ["Apache 2.0"]},
     {links, [
         {"GitHub",
