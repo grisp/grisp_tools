@@ -14,6 +14,7 @@
 -export([source_files/2]).
 -export([source_hash/2]).
 -export([with_file/3]).
+-export([pipe/2]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -102,6 +103,9 @@ with_file(File, Opts, Fun) ->
     after
         file:close(Handle)
     end.
+
+pipe(State, Actions) ->
+    lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
 
 %--- Internal ------------------------------------------------------------------
 

@@ -12,7 +12,7 @@
 %--- API -----------------------------------------------------------------------
 
 run(State) ->
-    execute(State, [
+    grisp_tools_util:pipe(State, [
         fun check_otp_version/1,
         fun calculate_hash/1,
         fun init_otp/1,
@@ -39,7 +39,7 @@ init_otp(#{custom_build := true, hash := Hash} = State0) ->
     event(State0, {otp_type, Hash, custom_build});
 init_otp(#{hash := Hash} = State0) ->
     State1 = event(State0, {otp_type, Hash, package}),
-    execute(State1, [
+    grisp_tools_util:pipe(State1, [
         fun package_load_etag/1,
         fun package_init_tmp/1,
         fun package_download/1,
@@ -53,7 +53,7 @@ make_release(#{install_root := InstallRoot} = State0) ->
 
 copy(State0) ->
     State1 = event(State0, {deployment, init}),
-    execute(State1, [
+    grisp_tools_util:pipe(State1, [
         fun(S) -> run_script(pre_script, S) end,
         fun copy_files/1,
         fun copy_release/1,
@@ -64,9 +64,6 @@ finalize(State0) ->
     event(State0, {deployment, done}).
 
 %--- Internal ------------------------------------------------------------------
-
-execute(State, Actions) ->
-    lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
 
 % Package downloads
 
