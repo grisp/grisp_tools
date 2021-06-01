@@ -1,8 +1,11 @@
-{"1.1.0",
-[{<<"bbmustache">>,{pkg,<<"bbmustache">>,<<"1.6.0">>},0},
- {<<"mapz">>,{pkg,<<"mapz">>,<<"0.3.0">>},0}]}.
+{"1.2.0",
+[{<<"bbmustache">>,{pkg,<<"bbmustache">>,<<"1.12.1">>},0},
+ {<<"mapz">>,{pkg,<<"mapz">>,<<"2.1.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"bbmustache">>, <<"7AC372AEC621A69C369DF237FBD9986CAABCDD6341089FE5F42E5A7A4AC706B8">>},
- {<<"mapz">>, <<"438D24746CE5A252101E00B2032EFDF7FC69EB32689D3B805DE5E6DD7F52614F">>}]}
+ {<<"bbmustache">>, <<"857FBDF86BDA46D07201B0E7A969820CB763A7C174C485FD0780D7E033EFE9F0">>},
+ {<<"mapz">>, <<"D6B6F85589A172B6367991CC20CA1BB9FB2B4328964CEF744E21D4357626370B">>}]},
+{pkg_hash_ext,[
+ {<<"bbmustache">>, <<"F4320778C31A821A2A664DB8894618ABB79C1AF7BBF7C03C703C8868D9BB09FE">>},
+ {<<"mapz">>, <<"C89F105004AF786BF76CEC66604EDD82279E943F6BC90EACEE61DD52FDFF4CBF">>}]}
 ].
