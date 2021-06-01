@@ -141,7 +141,7 @@ find_replacement_files(#{apps := Apps, project_root := Root, board := Board}, Su
         {value, Grisp, Rest} -> [Grisp|Rest];
         false                -> Apps
     end,
-    Dirs = [Dir || {_App, Dir} <- Sorted] ++ [Root],
+    Dirs = [Dir || {_App, #{dir := Dir}} <- Sorted] ++ [Root],
     lists:foldl(fun(Files, Acc) -> maps:merge(Acc, Files) end, #{}, [grisp_files(Dir, Board, SubDir) || Dir <- Dirs]).
 
 grisp_files(Dir, Board, Subdir) ->

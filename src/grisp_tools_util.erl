@@ -82,7 +82,7 @@ rm(File) ->
     end.
 
 source_files(Apps, Board) ->
-    lists:foldl(fun({_App, Dir}, {Sys, Drivers, NIFs}) ->
+    lists:foldl(fun({_App, #{dir := Dir}}, {Sys, Drivers, NIFs}) ->
         {AppSys, AppDrivers, AppNIFs} = collect_c_sources(Dir, Board),
         {maps:merge(Sys, AppSys), maps:merge(Drivers, AppDrivers), maps:merge(NIFs, AppNIFs)}
     end, {#{}, #{}, #{}}, Apps).
