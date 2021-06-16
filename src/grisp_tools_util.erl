@@ -3,6 +3,9 @@
 % API
 -export([env/1]).
 -export([cdn_path/2]).
+-export([otp_build_path/3]).
+-export([otp_install_path/3]).
+-export([otp_package_path/3]).
 -export([otp_path/2]).
 -export([package_name/1]).
 -export([package_cache_temp/1]).
@@ -11,7 +14,9 @@
 -export([ensure_dir/1]).
 -export([mv/2]).
 -export([rm/1]).
--export([source_files/2]).
+-export([build_overlay/4]).
+-export([overlay_hash/1]).
+-export([merge_build_config/2]).
 -export([source_hash/2]).
 -export([with_file/3]).
 -export([pipe/2]).
@@ -28,9 +33,22 @@ env(Key) ->
     Value.
 
 cdn_path(otp, #{board := Board} = State) ->
-    File = grisp_tools_util:package_name(State) ++ ".tar.gz",
+    File = grisp_tools_util:package_name(State),
     string:join([env(cdn), "platforms", Board, "otp", File], "/").
 
+otp_build_path(Root, Platform, Version) ->
+    filename:join(otp_dir(Root, Platform, Version), "build").
+
+otp_install_path(Root, Platform, Version) ->
+    filename:join(otp_dir(Root, Platform, Version), "install").
+
+otp_package_path(Root, Platform, Version) ->
+    filename:join(otp_dir(Root, Platform, Version), "package").
+
+otp_dir(Root, Platform, {_Components, _Pre, _Build, Ver}) ->
+    filename:join([Root, "_grisp", Platform, "otp", Ver]).
+
+% TODO: Deprecate
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, build_root) ->
     filename:join([Root, "_grisp", "otp", OTPVersion, "build"]);
 otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, install_root) ->
@@ -39,7 +57,7 @@ otp_path(#{board := Board} = State, install_root) ->
     filename:join([package_dir(), Board, package_name(State)]).
 
 package_name(#{otp_version := OTPVersion, hash := Hash}) ->
-    "grisp_otp_build_" ++ OTPVersion ++ "_" ++ Hash.
+    ["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"].
 
 package_cache_temp(State) ->
     package_cache_file(State) ++ ".temp".
@@ -80,6 +98,37 @@ rm(File) ->
         {error, enoent} -> ok;
         Error           -> error({delete_file_failed, File, Error})
     end.
+
+build_overlay(App, AppDir, Platform, Versions) ->
+    PlatformDir = filename:join([AppDir, grisp, Platform]),
+    Init = {#{}, #{}},
+    case filelib:is_dir(PlatformDir) of
+        true ->
+            lists:foldl(fun(Version, Acc) ->
+                collect_version_files(App, PlatformDir, Version, Acc)
+            end, Init, Versions);
+        false ->
+            Init
+    end.
+
+merge_build_config(C1, C2) ->
+    mapz:deep_merge(C1, C2).
+
+overlay_hash(#{hooks := Hooks} = Overlay) ->
+    AllHooks = maps:from_list([{N, I} || {_T, F} <- maps:to_list(Hooks), {N, I} <- maps:to_list(F)]),
+    HashIndex = lists:sort(maps:fold(fun
+        (_Type, Files, Acc) ->
+            Acc ++ maps:fold(fun(Name, Info, L) ->
+                {File, Origin} = case Info of
+                    #{dest := Dest, source := Source} -> {Dest, Source};
+                    #{source := Source} -> {Name, Source}
+                end,
+                {ok, Hash} = hash_file(Origin, sha256),
+                [io_lib:format("~s ~s~n", [File, format_hash(sha256, Hash)])|L]
+            end, [], Files)
+    end, [], Overlay#{hooks => AllHooks})),
+    TopHash = format_hash(sha256, crypto:hash(sha256, HashIndex)),
+    {TopHash, HashIndex}.
 
 source_files(Apps, Board) ->
     lists:foldl(fun({_App, #{dir := Dir}}, {Sys, Drivers, NIFs}) ->
@@ -187,3 +236,83 @@ format_hash(sha256, <<Int:256/big-unsigned-integer>>) -> format_hash(Int);
 format_hash(md5, <<Int:128/big-unsigned-integer>>)    -> format_hash(Int).
 
 format_hash(Int) when is_integer(Int) -> io_lib:format("~.16b", [Int]).
+
+collect_version_files(App, PlatformDir, Version, {Files, Config} = Acc) ->
+    RootDir = filename:join(PlatformDir, Version),
+    BuildDir = filename:join(RootDir, build),
+    case filelib:is_dir(RootDir) of
+        true ->
+            NewFiles = mapz:deep_merge(Files, pipe(Files, [
+                fun(S) -> collect_build_files(App, BuildDir, S) end,
+                fun(S) -> collect_build_patches(App, BuildDir, S) end,
+                fun(S) -> collect_build_drivers(App, BuildDir, S) end,
+                fun(S) -> collect_build_nifs(App, BuildDir, S) end,
+                fun(S) -> collect_build_hooks(App, BuildDir, S) end
+            ])),
+            {NewFiles, collect_build_config(App, RootDir, Config)};
+        false ->
+            Acc
+    end.
+
+collect_build_files(App, Dir, State) ->
+    State#{files => collect_file_tree(App, filename:join(Dir, "files"))}.
+
+collect_build_patches(App, Dir, State) ->
+    State#{patches => collect_file_list(App, filename:join(Dir, "patches"))}.
+
+collect_build_drivers(App, Dir, State) ->
+    State#{drivers => collect_file_list(App, filename:join(Dir, "drivers"), "erts/emulator/drivers/unix")}.
+
+collect_build_nifs(App, Dir, State) ->
+    State#{nifs => collect_file_list(App, filename:join(Dir, "nifs"), "erts/emulator/nifs/common")}.
+
+collect_build_hooks(App, Root, State0) ->
+    Dir = filename:join(Root, "hooks"),
+    lists:foldl(fun(Hook, State1) ->
+        Prefix = hook_prefix(Hook),
+        Info = #{
+            name => Hook,
+            app => App,
+            source => filename:join(Dir, Hook)
+        },
+        mapz:deep_put([hooks, Prefix, Hook], Info, State1)
+    end, State0, filelib:wildcard("*", binary_to_list(Dir))).
+
+hook_prefix("post-install" ++ _) -> post_install;
+hook_prefix(Hook) -> error({unknown_hook_prefix, Hook}).
+
+collect_build_config(_App, Dir, Acc) ->
+    case file:consult(filename:join(Dir, "grisp.config")) of
+        {error, enoent} ->
+            Acc;
+        {error, Reason} ->
+            error({error_reading_grisp_conf, file:format_error(Reason)});
+        {ok, List} ->
+            maps:get(build, mapz:deep_merge(List))
+    end.
+
+collect_file_list(App, Dir) -> collect_file_list(App, Dir, "").
+
+collect_file_list(App, Dir, Target) ->
+    InsertFile = fun(File, A) ->
+        Info = #{
+            name => File,
+            app => App,
+            source => filename:join(Dir, File),
+            dest => string:trim(filename:join(Target, File), both, "/")
+        },
+        A#{File => Info}
+    end,
+    lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
+
+collect_file_tree(App, Root) ->
+    filelib:fold_files(Root, ".*", true, fun(File, T) ->
+        Relative = string:trim(string:prefix(File, Root), leading, "/"),
+        Info = #{
+            name => Relative,
+            app => App,
+            source => File,
+            dest => Relative
+        },
+        T#{Relative => Info}
+    end, #{}).

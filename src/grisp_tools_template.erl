@@ -24,6 +24,7 @@ default(Context) -> maps:merge(env(), Context).
 env() -> #{env => maps:from_list([parse_env(E) || E <- os:getenv()])}.
 
 parse_env(E) ->
+    % TODO: Use os:env() once we only support 24+
     {match, [Name, Value]} = re:run(E, "([^=]+)=(.*)", [
         {capture, all_but_first, binary}
     ]),

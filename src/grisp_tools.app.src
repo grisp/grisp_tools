@@ -11,7 +11,8 @@
         mapz
     ]},
     {env, [
-        {cdn, "https://s3.amazonaws.com/grisp"}
+        {cdn, "https://s3.amazonaws.com/grisp"},
+        {otp_git_url, "https://github.com/erlang/otp"}
     ]},
     {modules, []},
 
