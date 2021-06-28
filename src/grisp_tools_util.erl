@@ -1,12 +1,14 @@
 -module(grisp_tools_util).
 
 % API
+-export([weave/2]).
+-export([event/2]).
+-export([shell/2]).
+-export([shell/3]).
+-export([exec/3]).
 -export([env/1]).
 -export([cdn_path/2]).
--export([otp_build_path/3]).
--export([otp_install_path/3]).
--export([otp_package_path/3]).
--export([otp_path/2]).
+-export([paths/3]).
 -export([package_name/1]).
 -export([package_cache_temp/1]).
 -export([package_cache_file/1]).
@@ -15,6 +17,7 @@
 -export([mv/2]).
 -export([rm/1]).
 -export([build_overlay/4]).
+-export([deploy_overlay/4]).
 -export([overlay_hash/1]).
 -export([merge_build_config/2]).
 -export([source_hash/2]).
@@ -27,47 +30,84 @@
 
 %--- API -----------------------------------------------------------------------
 
-% FIXME: Change to grisp_tools when migrated
+weave(S0, []) ->
+    S0;
+weave(S0, [{Step, Inner}|Steps]) ->
+    weave(with_event(S0, [name(Step)], fun(S1) ->
+        S2 = case Step of
+            Step when is_atom(Step) -> S1;
+            Step when is_function(Step) -> Step(S1)
+        end,
+        weave(S2, Inner)
+    end), Steps);
+weave(S0, [debug|Steps]) ->
+    io:format("~p~n", [S0]),
+    weave(S0, Steps);
+weave(_S0, [abort|_Steps]) ->
+    event(_S0, [abort]);
+weave(S0, [Step|Steps]) ->
+    weave(with_event(S0, [name(Step)], Step), Steps).
+
+with_event(#{event_stack := Current} = State0, New, Fun) ->
+    Stack = Current ++ New,
+    grisp_tools_util:pipe(State0, [
+        fun(S) -> event(S#{event_stack => Stack}, []) end,
+        fun(S) -> Fun(S#{event_stack => Stack}) end,
+        % fun(S) -> event(S, ['_end']) end,
+        fun(S) -> S#{event_stack => Current} end
+    ]);
+with_event(State0, New, Fun) ->
+    with_event(State0#{event_stack => []}, New, Fun).
+
+event(#{event_stack := Stack} = State0, Events) when is_list(Events) ->
+    {_Result, State1} = exec(event, State0, [Stack ++ Events]),
+    State1;
+event(State0, Event) -> % TODO: Remove this clause
+    {_Result, State1} = exec(event, State0, [Event]),
+    State1.
+
+shell(State, Command) -> shell(State, Command, []).
+
+shell(State, Command, Opts) ->
+    Env = mapz:deep_get([shell, env], State, #{}),
+    exec(shell, State, [Command, [{env, maps:to_list(Env)}] ++ Opts]).
+
+exec(Handler, #{handlers := Handlers} = State, Args) ->
+    {Result, NewHandlers} = grisp_tools_handler:run(Handler, Args, Handlers),
+    {Result, State#{handlers => NewHandlers}}.
+
 env(Key) ->
     {ok, Value} = application:get_env(grisp_tools, Key),
     Value.
 
-cdn_path(otp, #{board := Board} = State) ->
-    File = grisp_tools_util:package_name(State),
-    string:join([env(cdn), "platforms", Board, "otp", File], "/").
+cdn_path(otp, #{platform := Platform} = State) ->
+    File = package_name(State),
+    Path = lists:join($/, ["platforms", atom_to_binary(Platform), "otp", File]),
+    uri_string:resolve(Path, [env(cdn), "/"]).
 
-otp_build_path(Root, Platform, Version) ->
-    filename:join(otp_dir(Root, Platform, Version), "build").
-
-otp_install_path(Root, Platform, Version) ->
-    filename:join(otp_dir(Root, Platform, Version), "install").
-
-otp_package_path(Root, Platform, Version) ->
-    filename:join(otp_dir(Root, Platform, Version), "package").
+paths(Root, Platform, Version) ->
+    Dir = otp_dir(Root, Platform, Version),
+    #{
+        build => filename:join(Dir, "build"),
+        install => filename:join(Dir, "install"),
+        package => filename:join(Dir, "package"),
+        package_cache => cache(package)
+    }.
 
 otp_dir(Root, Platform, {_Components, _Pre, _Build, Ver}) ->
     filename:join([Root, "_grisp", Platform, "otp", Ver]).
 
-% TODO: Deprecate
-otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, build_root) ->
-    filename:join([Root, "_grisp", "otp", OTPVersion, "build"]);
-otp_path(#{custom_build := true, project_root := Root, otp_version := OTPVersion}, install_root) ->
-    filename:join([Root, "_grisp", "otp", OTPVersion, "install"]);
-otp_path(#{board := Board} = State, install_root) ->
-    filename:join([package_dir(), Board, package_name(State)]).
-
-package_name(#{otp_version := OTPVersion, hash := Hash}) ->
-    ["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"].
+package_name(#{otp_version := {_, _, _, OTPVersion}, hash := Hash}) ->
+    iolist_to_binary(["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"]).
 
 package_cache_temp(State) ->
-    package_cache_file(State) ++ ".temp".
+    <<(package_cache_file(State))/binary, ".temp">>.
 
-package_cache_file(State) ->
-    filename:join(otp_path(State, install_root), package_name(State)).
+package_cache_file(#{paths := #{package_cache := Cache}} = State) ->
+    filename:join(Cache, package_name(State)).
 
-package_cache_etag(State) ->
-    InstallRoot = otp_path(State, install_root),
-    Tarball = grisp_tools_util:package_name(State),
+package_cache_etag(#{paths := #{install := InstallRoot}} = State) ->
+    Tarball = package_name(State),
     PackageFile = filename:join(InstallRoot, Tarball),
     ETagFile = filename:join(InstallRoot, "ETag"),
     ETag = case {filelib:is_regular(PackageFile), filelib:is_regular(ETagFile)} of
@@ -100,12 +140,32 @@ rm(File) ->
     end.
 
 build_overlay(App, AppDir, Platform, Versions) ->
-    PlatformDir = filename:join([AppDir, grisp, Platform]),
-    Init = {#{}, #{}},
+    collect_overlay(AppDir, Platform, Versions, {#{}, #{}}, fun(Dir, {Files, Config}) ->
+        BuildDir = filename:join(Dir, build),
+        NewFiles = mapz:deep_merge(Files, pipe(Files, [
+            fun(S) -> collect_build_files(App, BuildDir, S) end,
+            fun(S) -> collect_build_patches(App, BuildDir, S) end,
+            fun(S) -> collect_build_drivers(App, BuildDir, S) end,
+            fun(S) -> collect_build_nifs(App, BuildDir, S) end,
+            fun(S) -> collect_build_hooks(App, BuildDir, S) end
+        ])),
+        {NewFiles, collect_build_config(App, Dir, Config)}
+    end).
+
+deploy_overlay(App, AppDir, Platform, Versions) ->
+    collect_overlay(AppDir, Platform, Versions, #{}, fun(Dir, Files) ->
+        BuildDir = filename:join(Dir, deploy),
+        mapz:deep_merge(Files, pipe(Files, [
+            fun(S) -> collect_build_files(App, BuildDir, S) end
+        ]))
+    end).
+
+collect_overlay(Dir, Platform, Versions, Init, CollectFun) ->
+    PlatformDir = filename:join([Dir, grisp, Platform]),
     case filelib:is_dir(PlatformDir) of
         true ->
             lists:foldl(fun(Version, Acc) ->
-                collect_version_files(App, PlatformDir, Version, Acc)
+                collect_version_files(PlatformDir, Version, Acc, CollectFun)
             end, Init, Versions);
         false ->
             Init
@@ -120,7 +180,7 @@ overlay_hash(#{hooks := Hooks} = Overlay) ->
         (_Type, Files, Acc) ->
             Acc ++ maps:fold(fun(Name, Info, L) ->
                 {File, Origin} = case Info of
-                    #{dest := Dest, source := Source} -> {Dest, Source};
+                    #{target := Target, source := Source} -> {Target, Source};
                     #{source := Source} -> {Name, Source}
                 end,
                 {ok, Hash} = hash_file(Origin, sha256),
@@ -158,9 +218,9 @@ pipe(State, Actions) ->
 
 %--- Internal ------------------------------------------------------------------
 
-cache_dir() -> filename:basedir(user_cache, "grisp").
+cache() -> filename:basedir(user_cache, "grisp").
 
-package_dir() -> filename:join([cache_dir(), "packages", "otp"]).
+cache(package) -> filename:join([cache(), "packages", "otp"]).
 
 collect_c_sources(Dir, Board) ->
     Source = filename:join([Dir, "grisp", Board]),
@@ -237,21 +297,11 @@ format_hash(md5, <<Int:128/big-unsigned-integer>>)    -> format_hash(Int).
 
 format_hash(Int) when is_integer(Int) -> io_lib:format("~.16b", [Int]).
 
-collect_version_files(App, PlatformDir, Version, {Files, Config} = Acc) ->
+collect_version_files(PlatformDir, Version, Acc, CollectFun) ->
     RootDir = filename:join(PlatformDir, Version),
-    BuildDir = filename:join(RootDir, build),
     case filelib:is_dir(RootDir) of
-        true ->
-            NewFiles = mapz:deep_merge(Files, pipe(Files, [
-                fun(S) -> collect_build_files(App, BuildDir, S) end,
-                fun(S) -> collect_build_patches(App, BuildDir, S) end,
-                fun(S) -> collect_build_drivers(App, BuildDir, S) end,
-                fun(S) -> collect_build_nifs(App, BuildDir, S) end,
-                fun(S) -> collect_build_hooks(App, BuildDir, S) end
-            ])),
-            {NewFiles, collect_build_config(App, RootDir, Config)};
-        false ->
-            Acc
+        true -> CollectFun(RootDir, Acc);
+        false -> Acc
     end.
 
 collect_build_files(App, Dir, State) ->
@@ -299,7 +349,7 @@ collect_file_list(App, Dir, Target) ->
             name => File,
             app => App,
             source => filename:join(Dir, File),
-            dest => string:trim(filename:join(Target, File), both, "/")
+            target => string:trim(filename:join(Target, File), both, "/")
         },
         A#{File => Info}
     end,
@@ -312,7 +362,18 @@ collect_file_tree(App, Root) ->
             name => Relative,
             app => App,
             source => File,
-            dest => Relative
+            target => Relative
         },
         T#{Relative => Info}
     end, #{}).
+
+name(Atom) when is_atom(Atom) ->
+    Atom;
+name(Fun) when is_function(Fun) ->
+    {name, AName} = erlang:fun_info(Fun, name),
+    name(atom_to_list(AName));
+name("-fun." ++ Fun) ->
+    name(string:trim(Fun, trailing, "/1-"));
+    % list_to_atom(string:slice(Name, 5, length(Name) - 8));
+name(String) when is_list(String) ->
+    list_to_atom(String).

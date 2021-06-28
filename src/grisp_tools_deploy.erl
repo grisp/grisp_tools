@@ -3,19 +3,24 @@
 % API
 -export([run/1]).
 
--import(grisp_tools_util, [
-    mv/2,
-    rm/1,
-    with_file/3
-]).
+-import(grisp_tools_util, [event/2]).
+-import(grisp_tools_util, [shell/2]).
+-import(grisp_tools_util, [exec/3]).
+-import(grisp_tools_util, [mv/2]).
+-import(grisp_tools_util, [rm/1]).
+-import(grisp_tools_util, [with_file/3]).
 
 %--- API -----------------------------------------------------------------------
 
 run(State) ->
-    grisp_tools_util:pipe(State, [
-        fun check_otp_version/1,
+    grisp_tools_util:weave(State, [
+        {validate, [
+            fun grisp_tools_step:apps/1,
+            fun grisp_tools_step:version/1
+        ]},
+        fun grisp_tools_step:collect/1,
         fun calculate_hash/1,
-        fun init_otp/1,
+        fun download/1,
         fun make_release/1,
         fun copy/1,
         fun finalize/1
@@ -23,21 +28,14 @@ run(State) ->
 
 %--- Tasks ---------------------------------------------------------------------
 
-check_otp_version(#{otp_version := OTPVersion} = State) ->
-    [Major|_] = string:split(OTPVersion, "."),
-    case {Major, erlang:system_info(otp_release)} of
-        {Target, Target}  -> State;
-        {Target, Current} -> error({otp_version_mismatch, Target, Current})
-    end.
+calculate_hash(#{build := #{overlay := Overlay}} = S0) ->
+    % FIXME: Move to function in _steps module and use in build task
+    {Hash, _HashIndex} = grisp_tools_util:overlay_hash(Overlay),
+    S0#{hash => Hash}.
 
-calculate_hash(#{apps := Apps, board := Board} = State0) ->
-    {Hash, _HashIndex} = grisp_tools_util:source_hash(Apps, Board),
-    State1 = State0#{hash => Hash},
-    State1#{install_root => grisp_tools_util:otp_path(State1, install_root)}.
-
-init_otp(#{custom_build := true, hash := Hash} = State0) ->
+download(#{custom_build := true, hash := Hash} = State0) ->
     event(State0, {otp_type, Hash, custom_build});
-init_otp(#{hash := Hash} = State0) ->
+download(#{hash := Hash} = State0) ->
     State1 = event(State0, {otp_type, Hash, package}),
     grisp_tools_util:pipe(State1, [
         fun package_load_etag/1,
@@ -47,9 +45,9 @@ init_otp(#{hash := Hash} = State0) ->
         fun package_extract/1
     ]).
 
-make_release(#{install_root := InstallRoot} = State0) ->
+make_release(#{paths := #{install := InstallPath}} = State0) ->
     Release = maps:get(release, State0, #{}),
-    release(State0, maps:merge(Release, #{erts => InstallRoot})).
+    release(State0, maps:merge(Release, #{erts => InstallPath})).
 
 copy(State0) ->
     State1 = event(State0, {deployment, init}),
@@ -86,7 +84,7 @@ package_download(#{package := #{etag := #{value := ETag}}} = State0) ->
     Headers = [{"If-None-Match", ETag} || ETag =/= undefined],
     Options = [{stream, {self, once}}, {sync, false}],
     State1 = event(State0, {package, {download_init, URI, ETag}}),
-    ReqID = http_get({URI, Headers}, Options, Client),
+    ReqID = http_get(URI, Headers, Options, Client),
     State2 = download_loop(ReqID, State1),
     case State2 of
         #{package := #{state := downloaded, tmp := Tmp, file := File}} ->
@@ -107,9 +105,9 @@ package_save_etag(State0) ->
     State0.
 
 package_extract(#{package := #{state := downloaded, file := File}} = State0) ->
-    #{install_root := InstallRoot} = State0,
+    #{paths := #{install := InstallPath}} = State0,
     State1 = event(State0, {package, {extract, {start, File}}}),
-    case erl_tar:extract(File, [compressed, {cwd, InstallRoot}]) of
+    case erl_tar:extract(File, [compressed, {cwd, InstallPath}]) of
         ok              -> event(State1, {package, {extract, done}});
         {error, Reason} -> event(State1, {package, {extract, {error, Reason}}})
     end;
@@ -117,11 +115,11 @@ package_extract(State0) ->
     State0.
 
 % copy_files(State, RelName, RelVsn, Board, ERTSVsn, Dest, Force, Opts) ->
-copy_files(#{copy := #{destination := Dest, force := Force}, release := Release, install_root := Root} = State0) ->
+copy_files(#{copy := #{destination := Dest, force := Force}, release := Release} = State0) ->
+    #{paths := #{install := InstallPath}} = State0,
     State1 = event(State0, {deployment, {files, {init, Dest}}}),
-    ERTSPath = filelib:wildcard(filename:join(Root, "erts-*")),
+    ERTSPath = filelib:wildcard(binary_to_list(filename:join(InstallPath, "erts-*"))),
     "erts-" ++ ERTSVsn = filename:basename(ERTSPath),
-    Tree = find_replacement_files(State1, "files"),
     #{name := RelName, version := RelVsn} = Release,
     Context = #{
         release_name    => RelName,
@@ -129,51 +127,12 @@ copy_files(#{copy := #{destination := Dest, force := Force}, release := Release,
         erts_vsn        => ERTSVsn
     },
     maps:fold(
-        fun(Target, Source, S) ->
+        fun(_Name, #{target := Target, source := Source}, S) ->
             write_file(Dest, Target, Source, Force, Context, S)
         end,
         State1,
-        Tree
+        mapz:deep_get([deploy, overlay, files], State0)
     ).
-
-find_replacement_files(#{apps := Apps, project_root := Root, board := Board}, SubDir) ->
-    Sorted = case lists:keytake(grisp, 1, Apps) of
-        {value, Grisp, Rest} -> [Grisp|Rest];
-        false                -> Apps
-    end,
-    Dirs = [Dir || {_App, #{dir := Dir}} <- Sorted] ++ [Root],
-    lists:foldl(fun(Files, Acc) -> maps:merge(Acc, Files) end, #{}, [grisp_files(Dir, Board, SubDir) || Dir <- Dirs]).
-
-grisp_files(Dir, Board, Subdir) ->
-    Path = filename:join([Dir, "grisp", Board, Subdir]),
-    resolve_files(find_files(Path), Path).
-
-find_files(Dir) ->
-    [F || F <- filelib:wildcard(Dir ++ "/**"), filelib:is_regular(F)].
-
-resolve_files(Files, Root) -> resolve_files(Files, Root, #{}).
-
-resolve_files([File|Files], Root, Resolved) ->
-    Relative = prefix(File, Root ++ "/"),
-    Name = filename:rootname(Relative, ".mustache"),
-    resolve_files(Files, Root, maps:put(
-        Name,
-        resolve_file(Root, Relative, Name, maps:find(Name, Resolved)),
-        Resolved
-    ));
-resolve_files([], _Root, Resolved) ->
-    Resolved.
-
-prefix(String, Prefix) ->
-    case lists:split(length(Prefix), String) of
-        {Prefix, Rest} -> Rest;
-        _              -> String
-    end.
-
-resolve_file(Root, Source, Source, error) ->
-    filename:join(Root, Source);
-resolve_file(Root, Source, _Target, _) ->
-    {template, filename:join(Root, Source)}.
 
 write_file(Dest, Target, Source, Force, Context, State0) ->
     Path = filename:join(Dest, Target),
@@ -271,7 +230,8 @@ http_init() ->
     {ok, InetsPid} = inets:start(httpc, [{profile, grisp_tools}], stand_alone),
     InetsPid.
 
-http_get(Request, Options, InetsPid) ->
+http_get(URI, Headers, Options, InetsPid) ->
+    Request = {URI, Headers},
     HTTPOptions = [{connect_timeout, 5000}],
     {ok, ID} = httpc:request(get, Request, HTTPOptions, Options, InetsPid),
     ID.
@@ -281,13 +241,9 @@ run_script(Name, State0) ->
         undefined -> State0;
         Script ->
             State1 = event(State0, {deployment, script, Name, {run, Script}}),
-            {Output, State2} = shell(State1, Script),
+            {{ok, Output}, State2} = shell(State1, Script),
             event(State2, {deployment, script, Name, {result, Output}})
     end.
-
-event(State0, Event) ->
-    {_Result, State1} = exec(event, State0, [Event]),
-    State1.
 
 release(State0, Release) ->
     State1 = event(State0, {release, {start, Release}}),
@@ -300,9 +256,3 @@ release(State0, Release) ->
         Merged ->
             error({invalid_release, Merged})
     end.
-
-shell(State, Script) -> exec(shell, State, [Script]).
-
-exec(Handler, #{handlers := Handlers} = State, Args) ->
-    {Result, NewHandlers} = grisp_tools_handler:run(Handler, Args, Handlers),
-    {Result, State#{handlers => NewHandlers}}.
