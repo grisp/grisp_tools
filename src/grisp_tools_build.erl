@@ -191,14 +191,9 @@ install(S0) ->
 
     run_hooks(S2, post_install, [{cd, InstallPath}]).
 
-post(#{build := #{overlay := Overlay}} = S0) ->
-    % info("Computing file hashes"),
-    {Hash, HashIndex} = grisp_tools_util:overlay_hash(Overlay),
-
-
-    % info("Writing hashes to file. Hash: ~p", [Hash]),
+post(#{build := #{hash := #{index := Index}}} = S0) ->
     PackageListing = filename:join(mapz:deep_get([paths, install], S0), "GRISP_PACKAGE_FILES"),
-    ok = file:write_file(PackageListing, HashIndex),
+    ok = file:write_file(PackageListing, Index),
 
     % info("Copying revision string into install dir"),
     ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
@@ -209,19 +204,15 @@ post(#{build := #{overlay := Overlay}} = S0) ->
         {ok, _} -> ok;
         _ -> error({missing_toolchain_revision, RevSource})
     end,
-    mapz:deep_put([build, hash], Hash, S0).
+    S0.
 
 tar(#{build := #{flags := #{tar := true}}} = S0) ->
-    #{
-        build := #{hash := Hash},
-        otp_version := Version,
-        paths := #{package := PackagePath, install := InstallPath}
-    } = S0,
-    CacheFile = grisp_tools_util:package_name(#{otp_version => Version, hash => Hash}),
-    Filename = filename:join(PackagePath, CacheFile),
-    grisp_tools_util:ensure_dir(Filename),
-    shell_ok(S0, ["tar -zcf ", Filename, " ."], [{cd, InstallPath}]),
-    event(S0, [{file, relative(Filename)}]);
+    #{paths := #{package := PackagePath, install := InstallPath}} = S0,
+    Name = grisp_tools_util:package_name(S0),
+    Package = filename:join(PackagePath, Name),
+    grisp_tools_util:ensure_dir(Package),
+    shell_ok(S0, ["tar -zcf ", Package, " ."], [{cd, InstallPath}]),
+    event(S0, [{file, relative(Package)}]);
 tar(S0) ->
     event(S0, ['_skip']).
 

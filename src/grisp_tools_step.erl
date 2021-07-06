@@ -89,7 +89,9 @@ apps(#{apps := Apps} = State0) ->
 
 collect(#{platform := Platform} = State0) ->
     Platforms = [default, Platform],
-    lists:foldl(fun collect_platform_files/2, State0, Platforms).
+    State1 = lists:foldl(fun collect_platform_files/2, State0, Platforms),
+    {Hash, HashIndex} = grisp_tools_util:build_hash(State1),
+    mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, State1).
 
 %--- Internal ------------------------------------------------------------------
 

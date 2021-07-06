@@ -19,7 +19,7 @@
 -export([rm/1]).
 -export([build_overlay/4]).
 -export([deploy_overlay/4]).
--export([overlay_hash/1]).
+-export([build_hash/1]).
 -export([merge_build_config/2]).
 -export([source_hash/2]).
 -export([with_file/3]).
@@ -98,7 +98,7 @@ paths(Root, Platform, Version) ->
 otp_dir(Root, Platform, {_Components, _Pre, _Build, Ver}) ->
     filename:join([Root, "_grisp", Platform, "otp", Ver]).
 
-package_name(#{otp_version := {_, _, _, OTPVersion}, hash := Hash}) ->
+package_name(#{otp_version := {_, _, _, OTPVersion}, build := #{hash := #{value := Hash}}}) ->
     iolist_to_binary(["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"]).
 
 package_cache_temp(State) ->
@@ -178,7 +178,7 @@ collect_overlay(Dir, Platform, Versions, Init, CollectFun) ->
 merge_build_config(C1, C2) ->
     mapz:deep_merge(C1, C2).
 
-overlay_hash(#{hooks := Hooks} = Overlay) ->
+build_hash(#{build := #{overlay := #{hooks := Hooks} = Overlay}}) ->
     AllHooks = maps:from_list([{N, I} || {_T, F} <- maps:to_list(Hooks), {N, I} <- maps:to_list(F)]),
     HashIndex = lists:sort(maps:fold(fun
         (_Type, Files, Acc) ->

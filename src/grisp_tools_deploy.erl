@@ -20,7 +20,6 @@ run(State) ->
                 fun grisp_tools_step:version/1
             ]},
             fun grisp_tools_step:collect/1,
-            fun calculate_hash/1,
             fun package/1,
             fun release/1,
             fun copy/1
@@ -29,14 +28,9 @@ run(State) ->
 
 %--- Tasks ---------------------------------------------------------------------
 
-calculate_hash(#{build := #{overlay := Overlay}} = S0) ->
-    % FIXME: Move to function in _steps module and use in build task
-    {Hash, _HashIndex} = grisp_tools_util:overlay_hash(Overlay),
-    S0#{hash => Hash}.
-
-package(#{custom_build := true, hash := Hash} = State0) ->
+package(#{custom_build := true, build := #{hash := #{value := Hash}}} = State0) ->
     event(State0, [{type, {custom_build, Hash}}]);
-package(#{hash := Hash} = State0) ->
+package(#{build := #{hash := #{value := Hash}}} = State0) ->
     State1 = event(State0, [{type, {package, Hash}}]),
     grisp_tools_util:weave(State1, [
         fun meta/1,
@@ -200,7 +194,7 @@ download_loop({ReqID, RequestPid}, Handle, State0, Bytes) ->
             State1 = event(State0, ['_skip']),
             mapz:deep_merge([State1, #{package => #{state => not_modified}}]);
         {http, {ReqID, {{_HTTPVer, 404, "Not Found"}, _Headers, _Body}}} ->
-            #{otp_version := OTPVersion, hash := Hash} = State0,
+            #{otp_version := OTPVersion, build := #{hash := #{value := Hash}}} = State0,
             error({package, {not_found, OTPVersion, Hash}});
         {http, Other} ->
             State1 = event(State0, [{error, Other}]),
