@@ -32,9 +32,11 @@ run(Configuration) ->
             {prepare, [
                 fun clean/1,
                 fun patch/1,
-                fun files/1,
-                fun drivers/1,
-                fun nifs/1
+                {copy, [
+                    fun files/1,
+                    fun drivers/1,
+                    fun nifs/1
+                ]}
             ]},
             {compile, [
                 fun configure/1,
@@ -257,7 +259,7 @@ sort_files(Apps, Files) ->
     lists:sort(SortFiles, [F || {_, F} <- maps:to_list(Files)]).
 
 copy_file(Root, #{target := Target, source := Path} = File, State0) ->
-    State1 = event(State0, [{copy, File}]),
+    State1 = event(State0, [File]),
     file:copy(Path, filename:join(Root, Target)),
     State1.
 

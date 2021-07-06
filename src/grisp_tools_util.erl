@@ -12,7 +12,8 @@
 -export([package_name/1]).
 -export([package_cache_temp/1]).
 -export([package_cache_file/1]).
--export([package_cache_etag/1]).
+-export([package_cache_meta/1]).
+-export([package_cache_meta/2]).
 -export([ensure_dir/1]).
 -export([mv/2]).
 -export([rm/1]).
@@ -106,18 +107,21 @@ package_cache_temp(State) ->
 package_cache_file(#{paths := #{package_cache := Cache}} = State) ->
     filename:join(Cache, package_name(State)).
 
-package_cache_etag(#{paths := #{install := InstallRoot}} = State) ->
-    Tarball = package_name(State),
-    PackageFile = filename:join(InstallRoot, Tarball),
-    ETagFile = filename:join(InstallRoot, "ETag"),
-    ETag = case {filelib:is_regular(PackageFile), filelib:is_regular(ETagFile)} of
+package_cache_meta(State) ->
+    PackageFile = package_cache_file(State),
+    MetaFile = iolist_to_binary([PackageFile, ".meta"]),
+    case {filelib:is_regular(PackageFile), filelib:is_regular(MetaFile)} of
         {true, true}  ->
-            {ok, Properties} = file:consult(ETagFile),
-            proplists:get_value(etag, Properties);
+            {ok, Meta} = file:consult(MetaFile),
+            mapz:deep_merge(Meta);
         _Else ->
-            undefined
-    end,
-    {ETagFile, ETag}.
+            #{}
+    end.
+
+package_cache_meta(State, Meta) ->
+    PackageFile = package_cache_file(State),
+    MetaFile = iolist_to_binary([PackageFile, ".meta"]),
+    ok = file:write_file(MetaFile, io_lib:format("~p.~n", [Meta])).
 
 ensure_dir(File) ->
     case filelib:ensure_dir(File) of
@@ -343,28 +347,43 @@ collect_build_config(_App, Dir, Acc) ->
 
 collect_file_list(App, Dir) -> collect_file_list(App, Dir, "").
 
-collect_file_list(App, Dir, Target) ->
+collect_file_list(App, Dir, Root) ->
     InsertFile = fun(File, A) ->
         Info = #{
             name => File,
             app => App,
             source => filename:join(Dir, File),
-            target => string:trim(filename:join(Target, File), both, "/")
+            target => string:trim(filename:join(Root, File), both, "/")
         },
         A#{File => Info}
     end,
     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
+% FIXME: Replace with
+% collect_file_list(App, Dir, Root) ->
+%     InsertFile = fun(File, A) ->
+%         {Source, Target} = check_template(
+%             filename:join(Dir, File),
+%             string:trim(filename:join(Root, File), both, "/")
+%         ),
+%         A#{File => #{
+%             name => File,
+%             app => App,
+%             source => Source,
+%             target => Target
+%         }}
+%     end,
+%     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
 
 collect_file_tree(App, Root) ->
     filelib:fold_files(Root, ".*", true, fun(File, T) ->
         Relative = string:trim(string:prefix(File, Root), leading, "/"),
-        Info = #{
+        {Source, Target} = check_template(File, Relative),
+        T#{Target => #{
             name => Relative,
             app => App,
-            source => File,
-            target => Relative
-        },
-        T#{Relative => Info}
+            source => Source,
+            target => Target
+        }}
     end, #{}).
 
 name(Atom) when is_atom(Atom) ->
@@ -374,6 +393,13 @@ name(Fun) when is_function(Fun) ->
     name(atom_to_list(AName));
 name("-fun." ++ Fun) ->
     name(string:trim(Fun, trailing, "/1-"));
-    % list_to_atom(string:slice(Name, 5, length(Name) - 8));
 name(String) when is_list(String) ->
     list_to_atom(String).
+
+check_template(File, Target) ->
+    case filename:extension(File) of
+        <<".mustache">> ->
+            {{template, File}, filename:rootname(Target, <<".mustache">>)};
+        _Else ->
+            {File, Target}
+    end.
