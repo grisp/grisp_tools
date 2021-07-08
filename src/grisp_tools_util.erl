@@ -22,6 +22,7 @@
 -export([build_hash/1]).
 -export([merge_build_config/2]).
 -export([source_hash/2]).
+-export([write_file/3]).
 -export([with_file/3]).
 -export([pipe/2]).
 
@@ -184,8 +185,14 @@ build_hash(#{build := #{overlay := #{hooks := Hooks} = Overlay}}) ->
         (_Type, Files, Acc) ->
             Acc ++ maps:fold(fun(Name, Info, L) ->
                 {File, Origin} = case Info of
-                    #{target := Target, source := Source} -> {Target, Source};
-                    #{source := Source} -> {Name, Source}
+                    #{target := Target, source := {template, Source}} ->
+                        {Target, Source};
+                    #{target := Target, source := Source} ->
+                        {Target, Source};
+                    #{source := {template, Source}} ->
+                        {Name, Source};
+                    #{source := Source} ->
+                        {Name, Source}
                 end,
                 {ok, Hash} = hash_file(Origin, sha256),
                 [io_lib:format("~s ~s~n", [File, format_hash(sha256, Hash)])|L]
@@ -205,6 +212,16 @@ source_hash(Apps, Board) ->
     Targets = maps:merge(DriverFiles, SystemFiles),
     Targets2 = maps:merge(Targets, NIFFiles),
     hash_files(Targets2).
+
+write_file(Root, #{target := Target} = File, Context) ->
+    Content = read_file(File, Context),
+    ok = file:write_file(filename:join(Root, Target), Content).
+
+read_file(#{source := {template, Source}}, Context) ->
+    grisp_tools_template:render(Source, Context);
+read_file(#{source := Source}, _Context) ->
+    {ok, Binary} = file:read_file(Source),
+    Binary.
 
 with_file(File, Opts, Fun) ->
     Handle = case file:open(File, Opts) of
@@ -349,30 +366,18 @@ collect_file_list(App, Dir) -> collect_file_list(App, Dir, "").
 
 collect_file_list(App, Dir, Root) ->
     InsertFile = fun(File, A) ->
-        Info = #{
-            name => File,
+        {Source, Target} = check_template(
+            filename:join(Dir, File),
+            string:trim(filename:join(Root, File), both, "/")
+        ),
+        A#{Target => #{
+            name => Target,
             app => App,
-            source => filename:join(Dir, File),
-            target => string:trim(filename:join(Root, File), both, "/")
-        },
-        A#{File => Info}
+            source => Source,
+            target => Target
+        }}
     end,
     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
-% FIXME: Replace with
-% collect_file_list(App, Dir, Root) ->
-%     InsertFile = fun(File, A) ->
-%         {Source, Target} = check_template(
-%             filename:join(Dir, File),
-%             string:trim(filename:join(Root, File), both, "/")
-%         ),
-%         A#{File => #{
-%             name => File,
-%             app => App,
-%             source => Source,
-%             target => Target
-%         }}
-%     end,
-%     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
 
 collect_file_tree(App, Root) ->
     filelib:fold_files(Root, ".*", true, fun(File, T) ->

@@ -29,7 +29,7 @@ run(Configuration) ->
             ]},
             fun grisp_tools_step:collect/1,
             fun download/1,
-            {prepare, [
+            {fun prepare/1, [
                 fun clean/1,
                 fun patch/1,
                 {copy, [
@@ -78,6 +78,26 @@ download(#{otp_version := {_,_,_,Ver}} = State0) ->
             event(mapz:deep_put([build, download], false, State0), ['_skip'])
     end.
 
+prepare(S0) ->
+    Drivers = maps:to_list(mapz:deep_get([build, overlay, drivers], S0)),
+    NIFs = maps:to_list(mapz:deep_get([build, overlay, nifs], S0)),
+    DriverFiles = [#{name => filename:basename(N, ".c")} || {N, _P} <- Drivers],
+    NIFFiles = [#{name => filename:basename(N, ".c")} || {N, _P} <- NIFs],
+
+    DrvPatchLineCount = 10 + length(DriverFiles),
+    NifPatchLineCount = 9 + length(NIFFiles),
+
+    Context = #{
+        erts_emulator_makefile_in => #{
+            driver_lines => DrvPatchLineCount,
+            nif_lines => NifPatchLineCount,
+            total_lines => DrvPatchLineCount + NifPatchLineCount,
+            drivers => DriverFiles,
+            nifs => NIFFiles
+        }
+    },
+    mapz:deep_put([build, context], Context, S0).
+
 clean(#{build := #{flags := #{clean := true}}} = State0) ->
     State1 = event(State0, ['_run']),
     BuildPath = mapz:deep_get([paths, build], State1),
@@ -89,25 +109,9 @@ clean(#{build := #{flags := #{clean := true}}} = State0) ->
 clean(State0) ->
     event(State0, ['_skip']).
 
-patch(#{build := #{overlay := #{patches := Patches}}} = State0) ->
+patch(#{build := #{overlay := #{patches := Patches}}} = S0) ->
     Sorted = lists:sort(maps:to_list(Patches)),
-
-    Drivers = maps:to_list(mapz:deep_get([build, overlay, drivers], State0)),
-    NIFs = maps:to_list(mapz:deep_get([build, overlay, nifs], State0)),
-
-    DrvPatchLineCount = 10 + length(Drivers),
-    NifPatchLineCount = 9 + length(NIFs),
-
-    Context = #{
-        erts_emulator_makefile_in => #{
-            driver_lines => DrvPatchLineCount,
-            nif_lines => NifPatchLineCount,
-            total_lines => DrvPatchLineCount + NifPatchLineCount,
-            drivers => [#{name => filename:basename(N, ".c")} || {N, _P} <- Drivers],
-            nifs => [#{name => filename:basename(N, ".c")} || {N, _P} <- NIFs]
-        }
-    },
-    lists:foldl(fun apply_patch/2, mapz:deep_put([build, patch_context], Context, State0), Sorted).
+    lists:foldl(fun apply_patch/2, S0, Sorted).
 
 files(State0) -> copy_files(State0, files, "").
 
@@ -222,12 +226,11 @@ build_step(Command, Opts, State0) ->
 
 %--- Internal ------------------------------------------------------------------
 
-apply_patch({Name, #{source := File} = Patch}, State0) ->
+apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
-    Context = mapz:deep_get([build, patch_context], State0),
-    Rendered = grisp_tools_template:render(File, Context),
-    ok = file:write_file(filename:join(Dir, Name), Rendered),
-    State4 = case shell(State0, "git apply " ++ Name ++ " --ignore-whitespace --reverse --check",
+    Context = mapz:deep_get([build, context], State0),
+    grisp_tools_util:write_file(Dir, Patch, Context),
+    State4 = case shell(State0, ["git apply ", Name, " --ignore-whitespace --reverse --check"],
             [{cd, Dir}, return_on_error]) of
         {{ok, _Output}, State1} ->
             event(State1, [{skip, Patch}]);
@@ -249,9 +252,10 @@ sort_files(Apps, Files) ->
     end,
     lists:sort(SortFiles, [F || {_, F} <- maps:to_list(Files)]).
 
-copy_file(Root, #{target := Target, source := Path} = File, State0) ->
+copy_file(Root, File, State0) ->
     State1 = event(State0, [File]),
-    file:copy(Path, filename:join(Root, Target)),
+    Context = mapz:deep_get([build, context], State0),
+    grisp_tools_util:write_file(Root, File, Context),
     State1.
 
 run_hooks(S0, Type, Opts) ->

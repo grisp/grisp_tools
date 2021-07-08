@@ -114,20 +114,13 @@ copy_files(#{copy := #{destination := Dest, force := Force}, release := Release}
         mapz:deep_get([deploy, overlay, files], State0)
     ).
 
-write_file(Dest, #{target := Target, source := Source} = File, Force, Context, State0) ->
+write_file(Dest, #{target := Target} = File, Force, Context, State0) ->
     Path = filename:join(Dest, Target),
     State1 = event(State0, [files, {copy, File}]),
-    Content = load_file(Source, Context),
     force_execute(Path, Force, fun(F) ->
         grisp_tools_util:ensure_dir(F),
-        ok = file:write_file(F, Content)
+        grisp_tools_util:write_file(Dest, File, Context)
     end, State1).
-
-load_file({template, Source}, Context) ->
-    grisp_tools_template:render(Source, Context);
-load_file(Source, _Context) ->
-    {ok, Binary} = file:read_file(Source),
-    Binary.
 
 force_execute(File, Force, Fun, State0) ->
     State1 = case {filelib:is_file(File), Force} of
