@@ -215,7 +215,9 @@ source_hash(Apps, Board) ->
 
 write_file(Root, #{target := Target} = File, Context) ->
     Content = read_file(File, Context),
-    ok = file:write_file(filename:join(Root, Target), Content).
+    Destination = filename:join(Root, Target),
+    ensure_dir(Destination),
+    ok = file:write_file(Destination, Content).
 
 read_file(#{source := {template, Source}}, Context) ->
     grisp_tools_template:render(Source, Context);
