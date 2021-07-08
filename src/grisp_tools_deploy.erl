@@ -46,8 +46,8 @@ release(#{paths := #{install := InstallPath}} = State0) ->
 copy(State0) ->
     grisp_tools_util:pipe(State0, [
         fun(S) -> run_script(pre_script, S) end,
-        fun copy_files/1,
         fun copy_release/1,
+        fun copy_files/1,
         fun(S) -> run_script(post_script, S) end
     ]).
 
