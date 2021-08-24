@@ -55,7 +55,7 @@ build(S0) ->
     PATH = os:getenv("PATH"),
     Env = #{
         "GRISP_TC_ROOT" => ToolchainRoot,
-        "PATH" => filename:join(ToolchainRoot, "rtems/5/bin") ++ ":" ++ PATH
+        "PATH" => filename:join(ToolchainRoot, "bin") ++ ":" ++ PATH
     },
     mapz:deep_merge(S0, #{shell => #{env => Env}}).
 
@@ -202,7 +202,7 @@ post(#{build := #{hash := #{index := Index}}} = S0) ->
     % info("Copying revision string into install dir"),
     ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
     InstallPath = mapz:deep_get([paths, install], S0),
-    RevSource = filename:join([ToolchainRoot, "rtems/5", "GRISP_TOOLCHAIN_REVISION"]),
+    RevSource = filename:join([ToolchainRoot, "GRISP_TOOLCHAIN_REVISION"]),
     RevDestination = filename:join(InstallPath, "GRISP_TOOLCHAIN_REVISION"),
     case file:copy(RevSource, RevDestination) of
         {ok, _} -> ok;
