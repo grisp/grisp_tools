@@ -22,6 +22,7 @@ run(Configuration) ->
     }),
 
     grisp_tools_util:weave(State, [
+        fun grisp_tools_step:config/1,
         {fun build/1, [
             {validate, [
                 fun grisp_tools_step:apps/1,

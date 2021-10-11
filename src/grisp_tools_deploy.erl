@@ -14,6 +14,7 @@
 
 run(State) ->
     grisp_tools_util:weave(State, [
+        fun grisp_tools_step:config/1,
         {deploy, [
             {validate, [
                 fun grisp_tools_step:apps/1,

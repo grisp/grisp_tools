@@ -1,6 +1,7 @@
 -module(grisp_tools_step).
 
 % API
+-export([config/1]).
 -export([version/1]).
 -export([apps/1]).
 -export([collect/1]).
@@ -36,6 +37,13 @@
 ").
 
 %--- API -----------------------------------------------------------------------
+
+config(S0) ->
+    Env = #{
+        "GRISP" => "yes",
+        "GRISP_PLATFORM" => atom_to_list(maps:get(platform, S0, grisp2))
+    },
+    mapz:deep_merge(S0, #{shell => #{env => Env}}).
 
 version(#{otp_version_requirement := SVersion} = S0) ->
     {{ok, Output}, S1} = shell(S0,
