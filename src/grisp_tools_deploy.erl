@@ -142,9 +142,13 @@ copy_release(#{release := Release, copy := Copy} = State0) ->
         true  -> "cp -Rf";
         false -> "cp -R"
     end,
+    State2 = case filelib:is_dir(Dest) of
+        false -> event(State1, [release, {error, target_dir_missing, Dest}]);
+        true -> State1
+    end,
     Command = string:join([CopyExe, qoute(Source ++ "/"), qoute(Target)], " "),
-    {Output, State2} = shell(State1, Command),
-    event(State2, [release, {copy, {result, Output}}]).
+    {Output, State3} = shell(State2, Command),
+    event(State3, [release, {copy, {result, Output}}]).
 
 qoute(String) -> "\"" ++ String ++ "\"".
 
