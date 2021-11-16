@@ -74,7 +74,7 @@ version(#{otp_version_requirement := SVersion} = S0) ->
             })
     end.
 
-apps(#{apps := Apps} = State0) ->
+apps(#{apps := Apps} = State) ->
     Graph = digraph:new([acyclic]),
     lists:map(fun({A, C}) ->
         Deps = maps:get(deps, C, []),
@@ -87,13 +87,11 @@ apps(#{apps := Apps} = State0) ->
         end, Deps)
     end, Apps),
 
-    State1 = validate_apps(State0, Apps, Graph),
-
     DependsOnGrisp = digraph_utils:reachable([grisp], Graph),
     GrispRelevant = digraph_utils:subgraph(Graph, DependsOnGrisp),
     Sorted = digraph_utils:topsort(GrispRelevant),
     digraph:delete(Graph),
-    State1#{apps => maps:from_list(Apps), sorted_apps => Sorted}.
+    State#{apps => maps:from_list(Apps), sorted_apps => Sorted}.
 
 collect(#{platform := Platform} = State0) ->
     Platforms = [default, Platform],
@@ -160,19 +158,6 @@ version_list({Version, _Pre, _Build, _Full} = Ver, N, List) ->
     Components = [integer_to_list(V) || V <- lists:sublist(Version, N)],
     Intermediate = iolist_to_binary(string:join(Components, ".")),
     version_list(Ver, N + 1, [Intermediate|List]).
-
-validate_apps(State, Apps, Graph) ->
-    lists:foldl(fun({A, #{dir := Dir}}, S) ->
-        case {A, digraph:get_path(Graph, grisp, A)} of
-            {A, false} when A =/= grisp ->
-                case filelib:is_dir(filename:join(Dir, "grisp")) of
-                    true -> event(S, [{grisp_dir_without_dep, A}]);
-                    _ -> S
-                end;
-            _Else ->
-                S
-        end
-    end, State, Apps).
 
 collect_platform_files(Platform, #{sorted_apps := Apps} = State) ->
     lists:foldl(fun(App, S) ->
