@@ -143,10 +143,15 @@ configure(#{build := Build} = S0) ->
     % We must configure if we just downloaded or cleaned the repository
     case WasDownloaded orelse DidClean orelse ShouldConfigure of
         true ->
-            Opts = [{cd, mapz:deep_get([paths, build], S0)}],
+            S1 = case {WasDownloaded, DidClean, ShouldConfigure} of
+                {true, _, false} -> event(S0, [{'_override', download}]);
+                {_, true, false} -> event(S0, [{'_override', clean}]);
+                {_, _, _} -> S0
+            end,
+            Opts = [{cd, mapz:deep_get([paths, build], S1)}],
             % TODO: Remove autoconf step when supporting only 23.3+ (not needed)
-            S1 = build_step("./otp_build autoconf", Opts, S0),
-            XCompConf = mapz:deep_get([build, config, xcomp_conf], S0),
+            S2 = build_step("./otp_build autoconf", Opts, S1),
+            XCompConf = mapz:deep_get([build, config, xcomp_conf], S2),
             Command = [
                 "./otp_build configure ",
                 " --prefix=/",
@@ -167,7 +172,7 @@ configure(#{build := Build} = S0) ->
                 " --without-wx",
                 " --xcomp-conf=", XCompConf
             ],
-            build_step(Command, Opts, S1);
+            build_step(Command, Opts, S2);
         false ->
             event(S0, ['_skip'])
     end.
