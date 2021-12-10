@@ -52,13 +52,14 @@ run(Configuration) ->
 %--- Internal Steps ------------------------------------------------------------
 
 build(S0) ->
-    ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
+    S1 = event(S0, [{platform, maps:get(platform, S0)}]),
+    ToolchainRoot = mapz:deep_get([paths, toolchain], S1),
     PATH = os:getenv("PATH"),
     Env = #{
         "GRISP_TC_ROOT" => ToolchainRoot,
         "PATH" => filename:join(ToolchainRoot, "bin") ++ ":" ++ PATH
     },
-    mapz:deep_merge(S0, #{shell => #{env => Env}}).
+    mapz:deep_merge(S1, #{shell => #{env => Env}}).
 
 download(#{otp_version := {_,_,_,Ver}} = State0) ->
     BuildPath = mapz:deep_get([paths, build], State0),
