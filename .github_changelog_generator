@@ -1,4 +1,0 @@
-user=grisp
-project=grisp_tools
-unreleased=false
-exclude-labels=duplicate,invalid,wontfix,question,help wanted,unreleased
