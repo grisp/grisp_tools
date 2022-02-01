@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.0.0] - 2022-02-01
+
 ### Added
 
 - All files can now be templates ([fa5f09d](https://github.com/grisp/grisp_tools/commit/fa5f09dea255bb5dd6dae6427d2df5f00fd02105))
