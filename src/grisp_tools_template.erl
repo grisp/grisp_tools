@@ -26,6 +26,7 @@ env() -> #{env => maps:from_list([parse_env(E) || E <- os:getenv()])}.
 parse_env(E) ->
     % TODO: Use os:env() once we only support 24+
     {match, [Name, Value]} = re:run(E, "([^=]+)=(.*)", [
-        {capture, all_but_first, binary}
+        {capture, all_but_first, binary},
+        unicode
     ]),
     {binary_to_atom(Name, utf8), Value}.

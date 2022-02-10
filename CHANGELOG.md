@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Template rendering no longer crashes when environment variables contain
+  unicode
+
 ## [2.0.0] - 2022-02-01
 
 ### Added
