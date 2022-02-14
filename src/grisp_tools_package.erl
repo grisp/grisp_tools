@@ -26,14 +26,19 @@ list_bucket(Client, Prefix, Token, Items) ->
         {<<"max-keys">>, <<"100">>},
         {<<"prefix">>, Prefix}
     ] ++ TokenQS),
-    {ok, 200, _Headers, Body} = hackney:send_request(Client, {get, URL, [], <<>>}),
+    Request = {get, URL, [], <<>>},
+    {ok, 200, _Headers, Body} = hackney:send_request(Client, Request),
     XML = decode(Body),
     Contents = xpath(XML, "/ListBucketResult/Contents/Key/child::text()"),
-    Packages = [simplify(C) || C <- Contents],
+    Packages = simplify(Contents),
     case continue(XML) of
         eof ->
             hackney:close(Client),
-            lists:usort([clean(Prefix, P) || P <- Packages ++ Items]);
+            lists:usort([
+                clean(Prefix, P)
+                ||
+                P <- Packages ++ Items, P =/= binary_to_list(Prefix)
+            ]);
         {continue, NewToken} ->
             list_bucket(Client, Prefix, NewToken, Packages ++ Items)
     end.
