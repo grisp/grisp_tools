@@ -8,7 +8,8 @@
         ssl,
         inets,
         bbmustache,
-        mapz
+        mapz,
+        hackney
     ]},
     {env, [
         {cdn, "https://s3.amazonaws.com/grisp"},

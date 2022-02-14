@@ -5,6 +5,7 @@
 -export([handlers_finalize/1]).
 -export([build/1]).
 -export([deploy/1]).
+-export([list_packages/1]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -21,3 +22,5 @@ handlers_finalize(#{handlers := Handlers}) ->
 build(Configuration) -> grisp_tools_build:run(Configuration).
 
 deploy(State) -> grisp_tools_deploy:run(State).
+
+list_packages(Opts) -> grisp_tools_package:list(Opts).

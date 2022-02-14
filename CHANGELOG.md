@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `grisp_tools_package:list/1` that lists pre-built OTP package versions.
+
 ### Fixed
 
 - Template rendering no longer crashes when environment variables contain
