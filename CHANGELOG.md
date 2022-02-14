@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.1.0] - 2022-02-14
+
 ### Added
 
 - `grisp_tools_package:list/1` that lists pre-built OTP package versions.
@@ -67,7 +69,9 @@ and this project adheres to
 ## [0.2.0] - 2018-09-11
 
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/0.2.6...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.1.0...HEAD
+[2.1.0]: https://github.com/grisp/grisp_tools/compare/2.0.0...2.1.0
+[2.0.0]: https://github.com/grisp/grisp_tools/compare/0.2.6...2.0.0
 [0.2.6]: https://github.com/grisp/grisp_tools/compare/0.2.6...0.2.6
 [0.2.5]: https://github.com/grisp/grisp_tools/compare/0.2.4...0.2.5
 [0.2.4]: https://github.com/grisp/grisp_tools/compare/0.2.3...0.2.4
