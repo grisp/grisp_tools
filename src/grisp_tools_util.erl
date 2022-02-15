@@ -184,15 +184,15 @@ build_hash(#{build := #{overlay := #{hooks := Hooks} = Overlay}}) ->
     AllHooks = maps:from_list([{N, I} || {_T, F} <- maps:to_list(Hooks), {N, I} <- maps:to_list(F)]),
     HashIndex = lists:sort(maps:fold(fun
         (_Type, Files, Acc) ->
-            Acc ++ maps:fold(fun(Name, Info, L) ->
+            Acc ++ maps:fold(fun(_Name, Info, L) ->
                 {File, Origin} = case Info of
                     #{target := Target, source := {template, Source}} ->
                         {Target, Source};
                     #{target := Target, source := Source} ->
                         {Target, Source};
-                    #{source := {template, Source}} ->
+                    #{name := Name, source := {template, Source}} ->
                         {Name, Source};
-                    #{source := Source} ->
+                    #{name := Name, source := Source} ->
                         {Name, Source}
                 end,
                 {ok, Hash} = hash_file(Origin, sha256),
@@ -322,7 +322,8 @@ hash_file_read(Handle, Context) ->
 format_hash(sha256, <<Int:256/big-unsigned-integer>>) -> format_hash(Int);
 format_hash(md5, <<Int:128/big-unsigned-integer>>)    -> format_hash(Int).
 
-format_hash(Int) when is_integer(Int) -> io_lib:format("~.16b", [Int]).
+format_hash(Int) when is_integer(Int) ->
+    list_to_binary(io_lib:format("~.16b", [Int])).
 
 collect_version_files(PlatformDir, Version, Acc, CollectFun) ->
     RootDir = filename:join(PlatformDir, Version),
@@ -347,11 +348,7 @@ collect_build_hooks(App, Root, State0) ->
     Dir = filename:join(Root, "hooks"),
     lists:foldl(fun(Hook, State1) ->
         Prefix = hook_prefix(Hook),
-        Info = #{
-            name => Hook,
-            app => App,
-            source => filename:join(Dir, Hook)
-        },
+        Info = file_info(Hook, App, filename:join(Dir, Hook)),
         mapz:deep_put([hooks, Prefix, Hook], Info, State1)
     end, State0, filelib:wildcard("*", binary_to_list(Dir))).
 
@@ -371,17 +368,13 @@ collect_build_config(_App, Dir, Acc) ->
 collect_file_list(App, Dir) -> collect_file_list(App, Dir, "").
 
 collect_file_list(App, Dir, Root) ->
-    InsertFile = fun(File, A) ->
+    InsertFile = fun(Match, A) ->
+        File = list_to_binary(Match),
         {Source, Target} = check_template(
             filename:join(Dir, File),
             string:trim(filename:join(Root, File), both, "/")
         ),
-        A#{Target => #{
-            name => Target,
-            app => App,
-            source => Source,
-            target => Target
-        }}
+        A#{Target => file_info(Target, App, Source, Target)}
     end,
     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
 
@@ -389,12 +382,7 @@ collect_file_tree(App, Root) ->
     filelib:fold_files(Root, ".*", true, fun(File, T) ->
         Relative = string:trim(string:prefix(File, Root), leading, "/"),
         {Source, Target} = check_template(File, Relative),
-        T#{Target => #{
-            name => Relative,
-            app => App,
-            source => Source,
-            target => Target
-        }}
+        T#{Target => file_info(Relative, App, Source, Target)}
     end, #{}).
 
 name(Atom) when is_atom(Atom) ->
@@ -414,3 +402,17 @@ check_template(File, Target) ->
         _Else ->
             {File, Target}
     end.
+
+file_info(Name, App, Source) ->
+    #{
+        name => path_to_binary(Name),
+        app => App,
+        source => path_to_binary(Source)
+    }.
+
+file_info(Name, App, Source, Target) ->
+    maps:put(target, path_to_binary(Target), file_info(Name, App, Source)).
+
+path_to_binary({template, Path}) when is_list(Path) -> {template, iolist_to_binary(Path)};
+path_to_binary(Path) when is_list(Path) -> iolist_to_binary(Path);
+path_to_binary(Path) -> Path.
