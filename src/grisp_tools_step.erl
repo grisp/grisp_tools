@@ -95,11 +95,12 @@ apps(#{apps := Apps} = State0) ->
     digraph:delete(Graph),
     State1#{apps => maps:from_list(Apps), sorted_apps => Sorted}.
 
-collect(#{platform := Platform} = State0) ->
+collect(#{platform := Platform} = S0) ->
     Platforms = [default, Platform],
-    State1 = lists:foldl(fun collect_platform_files/2, State0, Platforms),
-    {Hash, HashIndex} = grisp_tools_util:build_hash(State1),
-    mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, State1).
+    S1 = lists:foldl(fun collect_platform_files/2, S0, Platforms),
+    {Hash, HashIndex} = grisp_tools_util:build_hash(S1),
+    S2 = event(S1, [{hash, Hash, HashIndex}]),
+    mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S2).
 
 %--- Internal ------------------------------------------------------------------
 

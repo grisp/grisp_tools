@@ -20,6 +20,7 @@
 -export([build_overlay/4]).
 -export([deploy_overlay/4]).
 -export([build_hash/1]).
+-export([build_hash_format/1]).
 -export([merge_build_config/2]).
 -export([source_hash/2]).
 -export([write_file/3]).
@@ -195,11 +196,14 @@ build_hash(#{build := #{overlay := #{hooks := Hooks} = Overlay}}) ->
                         {Name, Source}
                 end,
                 {ok, Hash} = hash_file(Origin, sha256),
-                [io_lib:format("~s ~s~n", [File, format_hash(sha256, Hash)])|L]
+                [{File, format_hash(sha256, Hash)}|L]
             end, [], Files)
     end, [], Overlay#{hooks => AllHooks})),
-    TopHash = format_hash(sha256, crypto:hash(sha256, HashIndex)),
+    TopHash = format_hash(sha256, crypto:hash(sha256, build_hash_format(HashIndex))),
     {TopHash, HashIndex}.
+
+build_hash_format(Index) ->
+    [io_lib:format("~s ~s~n", [File, Hash]) || {File, Hash} <- Index].
 
 source_files(Apps, Board) ->
     lists:foldl(fun({_App, #{dir := Dir}}, {Sys, Drivers, NIFs}) ->

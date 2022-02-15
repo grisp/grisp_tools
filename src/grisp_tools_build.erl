@@ -204,7 +204,7 @@ install(S0) ->
 
 post(#{build := #{hash := #{index := Index}}} = S0) ->
     PackageListing = filename:join(mapz:deep_get([paths, install], S0), "GRISP_PACKAGE_FILES"),
-    ok = file:write_file(PackageListing, Index),
+    ok = file:write_file(PackageListing, grisp_tools_util:build_hash_format(Index)),
 
     % info("Copying revision string into install dir"),
     ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
