@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed a formatting issue when the correct OTP version is not found
+
 ## [2.1.0] - 2022-02-14
 
 ### Added

@@ -192,7 +192,10 @@ download_loop({ReqID, RequestPid}, Handle, State0, Bytes) ->
             State1 = event(State0, ['_skip']),
             mapz:deep_merge([State1, #{package => #{state => not_modified}}]);
         {http, {ReqID, {{_HTTPVer, 404, "Not Found"}, _Headers, _Body}}} ->
-            #{otp_version := OTPVersion, build := #{hash := #{value := Hash}}} = State0,
+            #{
+                otp_version := {_, _, _, OTPVersion},
+                build := #{hash := #{value := Hash}}
+            } = State0,
             error({package, {not_found, OTPVersion, Hash}});
         {http, Other} ->
             State1 = event(State0, [{error, Other}]),
