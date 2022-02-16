@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Git cloning now uses `--depth 1` to avoid downloading all of OTP history,
+  effectively halving the clone time and making the source size six times
+  smaller
+
 ## [2.2.0] - 2022-02-16
 
 ### Changed

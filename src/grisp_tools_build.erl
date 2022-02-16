@@ -72,6 +72,7 @@ download(#{otp_version := {_,_,_,Ver}} = State0) ->
             {{ok, Output}, State1} = shell(State0,
                 "git clone "
                 "-b " ++ Branch ++ " "
+                "--depth 1 " ++
                 "--single-branch " ++
                 URL ++ " " ++BuildPath
             ),
