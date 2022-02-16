@@ -228,11 +228,6 @@ run_script(Name, State0) ->
 release(State0, Release) ->
     State1 = event(State0, [{start, Release}]),
     {Spec, State2} = exec(release, State1, [Release]),
-    case maps:merge(Release, Spec) of
-        #{name := Name, dir := Dir, version := Version} = Merged
-          when length(Name) > 0, length(Dir) > 0, length(Version) > 0 ->
-            State3 = event(State2, [{done, Merged}]),
-            mapz:deep_merge(State3, #{release => Merged});
-        Merged ->
-            error({invalid_release, Merged})
-    end.
+    Merged = maps:merge(Release, Spec),
+    State3 = event(State2, [{done, Merged}]),
+    mapz:deep_merge(State3, #{release => Merged}).
