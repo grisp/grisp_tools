@@ -11,6 +11,8 @@ and this project adheres to
 ### Changed
 
 - `grisp_tools_package:list/1` now returns a list of versions with hashes
+- Deploying without custom build will resolve the OTP version from existing
+  packages instead of Git versions
 
 ### Fixed
 

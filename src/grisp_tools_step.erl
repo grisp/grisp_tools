@@ -46,10 +46,7 @@ config(S0) ->
     mapz:deep_merge(S0, #{shell => #{env => Env}}).
 
 version(#{otp_version_requirement := SVersion} = S0) ->
-    {{ok, Output}, S1} = shell(S0,
-        "git ls-remote --tags --refs https://github.com/erlang/otp"
-    ),
-    Versions = parse_versions(Output),
+    {Versions, S1} = available_versions(S0),
     ReOpts = [extended, global, notempty, {capture, all_names, binary}],
     {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
     {Version, Pre, Build, Full} = parse_version(RawVersion),
@@ -73,6 +70,19 @@ version(#{otp_version_requirement := SVersion} = S0) ->
                 paths => grisp_tools_util:paths(Root, Platform, Found)
             })
     end.
+
+available_versions(#{custom_build := true} = S0) ->
+    {{ok, Output}, S1} = shell(S0,
+        "git ls-remote --tags --refs https://github.com/erlang/otp"
+    ),
+    {parse_versions(Output), S1};
+available_versions(#{platform := Platform} = S0) ->
+    PackageVersions = grisp_tools_package:list(#{type => otp, platform => Platform}),
+    Versions = [begin
+        {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
+        parse_version(Vsn)
+    end || V <- lists:usort([V1 || #{version := V1} <- PackageVersions])],
+    {Versions, S0}.
 
 apps(#{apps := Apps} = State0) ->
     Graph = digraph:new([acyclic]),
