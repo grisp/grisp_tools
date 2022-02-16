@@ -61,24 +61,26 @@ build(S0) ->
     },
     mapz:deep_merge(S1, #{shell => #{env => Env}}).
 
-download(#{otp_version := {_,_,_,Ver}} = State0) ->
-    BuildPath = mapz:deep_get([paths, build], State0),
+download(#{otp_version := {_,_,_,Ver}} = S0) ->
+    BuildPath = mapz:deep_get([paths, build], S0),
     % FIXME: Check actual state of checkout instead of just checking for folder
     % presence!
     case filelib:is_dir(filename:join(BuildPath, ".git")) of
         false ->
             URL = grisp_tools_util:env(otp_git_url),
             Branch = ["OTP-", Ver],
-            {{ok, Output}, State1} = shell(State0,
+            % See https://github.com/erlang/rebar3/pull/2660
+            S1 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S0),
+            {{ok, Output}, S2} = shell(S1,
                 "git clone "
                 "-b " ++ Branch ++ " "
                 "--depth 1 " ++
                 "--single-branch " ++
-                URL ++ " " ++BuildPath
+                URL ++ " " ++ BuildPath
             ),
-            event(mapz:deep_put([build, download], true, State1), [{output, Output}]);
+            event(mapz:deep_put([build, download], true, S2), [{output, Output}]);
         true ->
-            event(mapz:deep_put([build, download], false, State0), ['_skip'])
+            event(mapz:deep_put([build, download], false, S0), ['_skip'])
     end.
 
 prepare(S0) ->
