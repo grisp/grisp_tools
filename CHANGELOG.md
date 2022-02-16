@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- `grisp_tools_package:list/1` now returns a list of versions with hashes
+
 ### Fixed
 
 - Fixed a formatting issue when the correct OTP version is not found
@@ -16,7 +20,7 @@ and this project adheres to
 
 ### Added
 
-- `grisp_tools_package:list/1` that lists pre-built OTP package versions.
+- `grisp_tools_package:list/1` that lists pre-built OTP package versions
 
 ### Fixed
 

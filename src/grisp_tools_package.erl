@@ -34,7 +34,7 @@ list_bucket(Client, Prefix, Token, Items) ->
     case continue(XML) of
         eof ->
             hackney:close(Client),
-            lists:usort([
+            lists:sort(fun version_sort/2, [
                 clean(Prefix, P)
                 ||
                 P <- Packages ++ Items, P =/= binary_to_list(Prefix)
@@ -62,5 +62,11 @@ xpath(Element, Path) -> xmerl_xpath:string(Path, Element).
 
 clean(Prefix, Path) ->
     "grisp_otp_build_" ++ VsnHash = string:prefix(Path, Prefix),
-    [Vsn|_] = string:split(VsnHash, <<"_">>),
-    Vsn.
+    [Vsn, HashExt] = string:split(VsnHash, <<"_">>),
+    Hash = filename:basename(HashExt, <<".tar.gz">>),
+    #{version => Vsn, hash => Hash}.
+
+version_sort(#{version := Vsn, hash := H1}, #{version := Vsn, hash := H2}) ->
+    H1 =< H2;
+version_sort(#{version := V1}, #{version := V2}) ->
+    V1 =< V2.
