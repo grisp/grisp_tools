@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.2.0] - 2022-02-16
+
 ### Changed
 
 - `grisp_tools_package:list/1` now returns a list of versions with hashes
@@ -79,7 +81,8 @@ and this project adheres to
 ## [0.2.0] - 2018-09-11
 
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.1.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.2.0...HEAD
+[2.2.0]: https://github.com/grisp/grisp_tools/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp_tools/compare/2.0.0...2.1.0
 [2.0.0]: https://github.com/grisp/grisp_tools/compare/0.2.6...2.0.0
 [0.2.6]: https://github.com/grisp/grisp_tools/compare/0.2.6...0.2.6
