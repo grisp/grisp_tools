@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `grisp_tools_package:list/1` can now return toolchain packages. In addition,
+  it returns more meta data about packages than before.
+
 ### Fixed
 
 - Git cloning now uses `--depth 1` to avoid downloading all of OTP history,
