@@ -86,15 +86,22 @@ download(#{package := #{meta := Meta}} = State0) ->
     end,
     State2.
 
-extract(#{package := #{state := downloaded, file := File}} = State0) ->
+extract(#{package := #{state := State, file := File}} = State0) 
+        when (State == downloaded) or (State == not_modified) ->   
     #{paths := #{install := InstallPath}} = State0,
+    case filelib:is_dir(InstallPath) of
+        true -> event(State0, ['_skip']);
+        false -> extract_really(File, InstallPath, State0)
+    end;
+extract(State0) ->
+    event(State0, ['_skip']).
+
+extract_really(File, InstallPath, State0) ->
     State1 = event(State0, [{start, File}]),
     case erl_tar:extract(File, [compressed, {cwd, InstallPath}]) of
         ok              -> event(State1, [done]);
         {error, Reason} -> event(State1, [{error, Reason}])
-    end;
-extract(State0) ->
-    event(State0, ['_skip']).
+    end.
 
 copy_files(#{copy := #{destination := Dest, force := Force}, release := Release} = State0) ->
     #{paths := #{install := InstallPath}} = State0,
