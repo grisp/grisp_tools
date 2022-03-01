@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.2.2] - 2022-03-01
+
+- Fix processing of already downloaded OTP packages
+
 ## [2.2.1] - 2022-03-01
 
 ### Added
@@ -94,7 +98,8 @@ and this project adheres to
 ## [0.2.0] - 2018-09-11
 
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.2.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.2.2...HEAD
+[2.2.1]: https://github.com/grisp/grisp_tools/compare/2.2.1...2.2.2
 [2.2.1]: https://github.com/grisp/grisp_tools/compare/2.2.0...2.2.1
 [2.2.0]: https://github.com/grisp/grisp_tools/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp_tools/compare/2.0.0...2.1.0
