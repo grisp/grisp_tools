@@ -5,6 +5,7 @@
 -export([version/1]).
 -export([apps/1]).
 -export([collect/1]).
+-export([toolchain/1]).
 
 -import(grisp_tools_util, [event/2]).
 -import(grisp_tools_util, [shell/2]).
@@ -112,6 +113,21 @@ collect(#{platform := Platform} = S0) ->
     S2 = event(S1, [{hash, Hash, HashIndex}]),
     mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S2).
 
+toolchain(S0) ->
+    ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
+    [error({toolchain_root_invalid, ToolchainRoot}) || not filelib:is_dir(ToolchainRoot)],
+    Files = [
+        ["GRISP_TOOLCHAIN_REVISION"],
+        ["GRISP_TOOLCHAIN_PLATFORM"],
+        ["grisp_buildinfo.hrl"],
+        ["arm-rtems5"],
+        ["arm-rtems5", "atsamv"],
+        ["arm-rtems5", "imx7"],
+        ["bin","arm-rtems5-gcc"]
+    ],
+    [ check_toolchain_file([ToolchainRoot|File]) || File <- Files],
+    S0.
+
 %--- Internal ------------------------------------------------------------------
 
 parse_versions(Output) ->
@@ -199,3 +215,7 @@ collect_app_files(App, Platform, #{apps := Apps, otp_version_list := Versions} =
     mapz:deep_update_with([build, config], fun(C) ->
         grisp_tools_util:merge_build_config(C, Config)
     end, Config, S2).
+
+check_toolchain_file(PathElements) ->
+    Path = filename:join(PathElements),
+    [error({toolchain_root_invalid, Path}) || not filelib:is_file(Path)].
