@@ -142,7 +142,22 @@ parse_version([Build, Extra1, Extra2, Major, Minor, Patch, Pre, Full]) ->
 parse_version_integer(<<>>) -> <<>>;
 parse_version_integer(Version) -> binary_to_integer(Version).
 
-find_version({_VN_list, Pre, Build, Full}, Versions) ->
+find_version_fuzzy({[], _, _, _}, []) ->
+    {error, not_found};
+find_version_fuzzy({[], _, _, _}, Versions) ->
+    {ok, hd(lists:reverse(lists:sort(Versions)))};
+find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
+    find_version(
+        {Version, Pre, Build, Full},
+        lists:filter(fun
+            ({Ver, P, B, _F}) when P =:= Pre, B =:= Build ->
+                length(Ver) >= N andalso lists:nth(N, Ver) == V;
+            (_) ->
+                false
+        end, Versions)
+    ).
+
+find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
     case lists:filter(fun
             ({_Ver, P, B, VerFullBin}) 
               when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
@@ -151,6 +166,12 @@ find_version({_VN_list, Pre, Build, Full}, Versions) ->
                 false end, Versions) of
         [V|_] -> {ok, V};
         [] -> {error, not_found}
+    end.
+
+find_version(Requested, Availables) ->
+    case find_version_strict(Requested, Availables) of
+        {ok, V} -> {ok,V};
+        {error, not_found} -> find_version_fuzzy(Requested, Availables)
     end.
 
 version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) when
