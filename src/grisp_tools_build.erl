@@ -26,7 +26,8 @@ run(Configuration) ->
         {fun build/1, [
             {validate, [
                 fun grisp_tools_step:apps/1,
-                fun grisp_tools_step:version/1
+                fun grisp_tools_step:version/1,
+                fun grisp_tools_step:toolchain/1
             ]},
             fun grisp_tools_step:collect/1,
             fun download/1,
