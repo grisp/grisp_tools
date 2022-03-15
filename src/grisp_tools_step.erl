@@ -142,13 +142,30 @@ parse_version_integer(<<>>) -> <<>>;
 parse_version_integer(Version) -> binary_to_integer(Version).
 
 parse_version_requirement("=" ++ SVersion) ->
-    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
-    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
-    {strict, RawVersion};
+    {strict, parse_version_name(SVersion)};
 parse_version_requirement(SVersion) ->
+    {fuzzy, parse_version_name(SVersion)}.
+
+parse_version_name(SVersion) ->
     ReOpts = [extended, global, notempty, {capture, all_names, binary}],
     {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
-    {fuzzy, RawVersion}.
+    RawVersion.
+
+find_version(Requested, strict, Availables) ->
+    find_version_strict(Requested, Availables);
+find_version(Requested, fuzzy, Availables) ->
+    find_version_fuzzy(Requested, Availables).
+
+find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
+    case lists:filter(fun
+            ({_Ver, P, B, VerFullBin}) 
+              when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
+                true;
+            (_) ->
+                false end, Versions) of
+        [V|_] -> {ok, V};
+        [] -> {error, not_found}
+    end.
 
 find_version_fuzzy({[], _, _, _}, []) ->
     {error, not_found};
@@ -164,22 +181,6 @@ find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
                 false
         end, Versions)
     ).
-
-find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
-    case lists:filter(fun
-            ({_Ver, P, B, VerFullBin}) 
-              when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
-                true;
-            (_) ->
-                false end, Versions) of
-        [V|_] -> {ok, V};
-        [] -> {error, not_found}
-    end.
-
-find_version(Requested, strict, Availables) ->
-    find_version_strict(Requested, Availables);
-find_version(Requested, fuzzy, Availables) ->
-    find_version_fuzzy(Requested, Availables).
 
 version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) 
   when N > length(Version) ->
