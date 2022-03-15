@@ -12,7 +12,7 @@
 %--- Macros --------------------------------------------------------------------
 
 -define(RE_VERSION, "
-    (?<STRICT>=)?(?<VERSION>
+    (?<VERSION>
 
 
     (?<MAJOR>\\d+)
@@ -47,14 +47,13 @@ config(S0) ->
 
 version(#{otp_version_requirement := SVersion} = S0) ->
     {Versions, S1} = available_versions(S0),
-    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
-    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
-    {Version, Pre, Build, Full, Strict} = parse_version(RawVersion),
+    {Type, RawVersion} = parse_version_requirement(SVersion),
+    {Version, Pre, Build, Full} = parse_version(RawVersion),
     Indexed = lists:zip(lists:seq(1, length(Version)), Version),
-    case find_version({Indexed, Pre, Build, Full, Strict}, Versions) of
+    case find_version({Indexed, Pre, Build, Full}, Type, Versions) of
         {error, not_found} ->
             error({otp_version_not_found, SVersion});
-        {ok, {[Major|_Version], _Pre, _Build, _Strict, FoundFull} = Found} ->
+        {ok, {[Major|_Version], _Pre, _Build, FoundFull} = Found} ->
             % TODO: Use the exact OTP_VERSION file here instead?
             % https://erlang.org/doc/system_principles/versions.html
             S2 = case {Major, list_to_integer(erlang:system_info(otp_release))} of
@@ -130,36 +129,45 @@ parse_versions(Output) ->
     ),
     [parse_version(V) || V <- RawVersions].
 
-parse_version([Build, Extra1, Extra2, Major, Minor, Patch, Pre, Strict, Full]) ->
+parse_version([Build, Extra1, Extra2, Major, Minor, Patch, Pre, Full]) ->
     {[I || I <- [
         parse_version_integer(Major),
         parse_version_integer(Minor),
         parse_version_integer(Patch),
         parse_version_integer(Extra1),
         parse_version_integer(Extra2)
-    ], I =/= <<>>], Pre, Build, case Strict of <<>> -> false; _ -> true end, Full}.
+    ], I =/= <<>>], Pre, Build, Full}.
 
 parse_version_integer(<<>>) -> <<>>;
 parse_version_integer(Version) -> binary_to_integer(Version).
 
-find_version_fuzzy({[], _, _, _, _}, []) ->
+parse_version_requirement("=" ++ SVersion) ->
+    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
+    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
+    {strict, RawVersion};
+parse_version_requirement(SVersion) ->
+    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
+    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
+    {fuzzy, RawVersion}.
+
+find_version_fuzzy({[], _, _, _}, []) ->
     {error, not_found};
-find_version_fuzzy({[], _, _, _, _}, Versions) ->
+find_version_fuzzy({[], _, _, _}, Versions) ->
     {ok, hd(lists:reverse(lists:sort(Versions)))};
-find_version_fuzzy({[{N, V}|Version], Pre, Build, Strict, Full}, Versions) ->
-    find_version(
-        {Version, Pre, Build, Strict, Full},
+find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
+    find_version_fuzzy(
+        {Version, Pre, Build, Full},
         lists:filter(fun
-            ({Ver, P, B, _Strict, _F}) when P =:= Pre, B =:= Build ->
+            ({Ver, P, B, _F}) when P =:= Pre, B =:= Build ->
                 length(Ver) >= N andalso lists:nth(N, Ver) == V;
             (_) ->
                 false
         end, Versions)
     ).
 
-find_version_strict({_VN_list, Pre, Build, _Strict, Full}, Versions) ->
+find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
     case lists:filter(fun
-            ({_Ver, P, B, _S, VerFullBin}) 
+            ({_Ver, P, B, VerFullBin}) 
               when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
                 true;
             (_) ->
@@ -168,12 +176,12 @@ find_version_strict({_VN_list, Pre, Build, _Strict, Full}, Versions) ->
         [] -> {error, not_found}
     end.
 
-find_version({_, _, _, Strict, _} = Requested, Availables) when Strict == true ->
+find_version(Requested, strict, Availables) ->
     find_version_strict(Requested, Availables);
-find_version(Requested, Availables) ->
+find_version(Requested, fuzzy, Availables) ->
     find_version_fuzzy(Requested, Availables).
 
-version_list({Version, Pre, Build, _Strict, _Full}, N, [Last|_] = List) 
+version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) 
   when N > length(Version) ->
     Extra = case {Pre, Build} of
         {<<>>, <<>>} -> [];
@@ -182,7 +190,7 @@ version_list({Version, Pre, Build, _Strict, _Full}, N, [Last|_] = List)
         {Pre, Build} -> [iolist_to_binary([Last, "-", Pre, "+", Build])]
     end,
     lists:reverse(Extra ++ List);
-version_list({Version, _Pre, _Build, _Strict, _Full} = Ver, N, List) ->
+version_list({Version, _Pre, _Build, _Full} = Ver, N, List) ->
     Components = [integer_to_list(V) || V <- lists:sublist(Version, N)],
     Intermediate = iolist_to_binary(string:join(Components, ".")),
     version_list(Ver, N + 1, [Intermediate|List]).
