@@ -97,10 +97,10 @@ paths(Root, Platform, Version) ->
         package_cache => cache(package)
     }.
 
-otp_dir(Root, Platform, {_Components, _Pre, _Build, Ver}) ->
+otp_dir(Root, Platform, {_Components, _Pre, _Build, _Strict, Ver}) ->
     filename:join([Root, "_grisp", Platform, "otp", Ver]).
 
-package_name(#{otp_version := {_, _, _, OTPVersion}, build := #{hash := #{value := Hash}}}) ->
+package_name(#{otp_version := {_, _, _, _, OTPVersion}, build := #{hash := #{value := Hash}}}) ->
     iolist_to_binary(["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"]).
 
 package_cache_temp(State) ->
