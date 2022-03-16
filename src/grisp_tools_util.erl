@@ -8,7 +8,7 @@
 -export([exec/3]).
 -export([env/1]).
 -export([cdn_path/2]).
--export([paths/3]).
+-export([paths/5]).
 -export([package_name/1]).
 -export([package_cache_temp/1]).
 -export([package_cache_file/1]).
@@ -88,12 +88,18 @@ cdn_path(otp, #{platform := Platform} = State) ->
     Path = lists:join($/, ["platforms", atom_to_binary(Platform), "otp", File]),
     uri_string:resolve(Path, [env(cdn), "/"]).
 
-paths(Root, Platform, Version) ->
+paths(Root, Platform, Version, _Hash, _CustomBuild = true) ->
     Dir = otp_dir(Root, Platform, Version),
+    sub_paths(Dir, "");
+paths( _, Platform, {_Components, _Pre, _Build, Ver}, Hash, _CustomBuild = false) ->
+    Dir = filename:join([cache(), Platform, "otp", Ver]),    
+    sub_paths(Dir, Hash).
+
+sub_paths(Dir, Hash) ->
     #{
-        build => filename:join(Dir, "build"),
-        install => filename:join(Dir, "install"),
-        package => filename:join(Dir, "package"),
+        build => filename:join([Dir, Hash, "build"]),
+        install => filename:join([Dir, Hash, "install"]),
+        package => filename:join([Dir, Hash, "package"]),
         package_cache => cache(package)
     }.
 

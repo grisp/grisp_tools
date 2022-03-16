@@ -62,12 +62,9 @@ version(#{otp_version_requirement := SVersion} = S0) ->
                 {Target, Current} -> event(S1, [{mismatch, Target, Current}])
             end,
             S3 = event(S2, [{selected, FoundFull, SVersion}]),
-            Root = maps:get(project_root, S3),
-            Platform = maps:get(platform, S3),
             mapz:deep_merge(S3, #{
                 otp_version => Found,
-                otp_version_list => [<<"common">>] ++ version_list(Found, 1, []),
-                paths => grisp_tools_util:paths(Root, Platform, Found)
+                otp_version_list => [<<"common">>] ++ version_list(Found, 1, [])
             })
     end.
 
@@ -105,12 +102,16 @@ apps(#{apps := Apps} = State0) ->
     digraph:delete(Graph),
     State1#{apps => maps:from_list(Apps), sorted_apps => Sorted}.
 
-collect(#{platform := Platform} = S0) ->
+collect(#{project_root := Root, platform := Platform,
+          otp_version := Version, custom_build := CustomBuild} = S0) ->
     Platforms = [default, Platform],
     S1 = lists:foldl(fun collect_platform_files/2, S0, Platforms),
     {Hash, HashIndex} = grisp_tools_util:build_hash(S1),
     S2 = event(S1, [{hash, Hash, HashIndex}]),
-    mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S2).
+    S3 = mapz:deep_merge(S2, #{
+        paths => grisp_tools_util:paths(Root, Platform, Version, Hash, CustomBuild)
+    }),
+    mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S3).
 
 %--- Internal ------------------------------------------------------------------
 
