@@ -63,24 +63,23 @@ build(S0) ->
 
 download(#{otp_version := {_,_,_,Ver}} = S0) ->
     BuildPath = mapz:deep_get([paths, build], S0),
-    % FIXME: Check actual state of checkout instead of just checking for folder
-    % presence!
-    case filelib:is_dir(filename:join(BuildPath, ".git")) of
-        false ->
+    case check_git_repository(BuildPath, S0) of
+        {false, S1}->
+            S2 = delete_directory(BuildPath, S1),
             URL = grisp_tools_util:env(otp_git_url),
             Branch = ["OTP-", Ver],
             % See https://github.com/erlang/rebar3/pull/2660
-            S1 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S0),
-            {{ok, Output}, S2} = shell(S1,
+            S3 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S2),
+            {{ok, Output}, S4} = shell(S3,
                 "git clone "
                 "-b " ++ Branch ++ " "
                 "--depth 1 " ++
                 "--single-branch " ++
                 URL ++ " " ++ BuildPath
             ),
-            event(mapz:deep_put([build, download], true, S2), [{output, Output}]);
-        true ->
-            event(mapz:deep_put([build, download], false, S0), ['_skip'])
+            event(mapz:deep_put([build, download], true, S4), [{output, Output}]);
+        {true, S1} ->
+            event(mapz:deep_put([build, download], false, S1), ['_skip'])
     end.
 
 prepare(S0) ->
@@ -281,6 +280,12 @@ run_hooks(S0, Type, Opts) ->
             end, S1, lists:sort(maps:to_list(Hooks)))
     end.
 
+delete_directory(BuildPath, S0) ->
+    case filelib:is_dir(BuildPath) of
+        true -> shell_ok(S0, "rm -rf "++BuildPath, []);
+        false -> S0
+    end.
+
 shell_ok(State0, Hook, Opts) ->
     {{ok, _Output}, State1} = shell(State0, Hook, Opts),
     State1.
@@ -291,3 +296,36 @@ to_list(List) when is_list(List) -> List.
 relative(Path) ->
     {ok, CWD} = file:get_cwd(),
     string:trim(string:prefix(Path, CWD), leading, "/").
+
+check_git_repository(BuildPath, S0) -> 
+    Repo = binary_to_list(filename:join(BuildPath, ".git")),
+    case filelib:is_dir(Repo) of
+        true -> repo_sanity_check(Repo, S0);
+        false -> {false, S0}
+    end.
+
+repo_sanity_check(Repo, S0) ->
+    PlumbingTests = [
+        {
+            "git --git-dir "++ Repo ++" fetch --dry-run", 
+            fun("") -> true; (_) -> false end
+        },
+        {
+            "git --git-dir "++ Repo ++" describe --tags", 
+            fun(Out) -> 
+                {_,_,_,V} = maps:get(otp_version, S0),
+                VersionTag = "OTP-"++binary_to_list(V)++"\n",
+                case Out of VersionTag -> true; _ -> false end
+            end
+        }
+    ],
+    run_git_plumbings(PlumbingTests, S0).
+
+run_git_plumbings([], S) ->
+    {true, S};
+run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
+    {{ok, Output}, S1} = shell(S0, Cmd),
+    case Check(Output) of
+        true -> run_git_plumbings(Plumbings, S1);
+        false -> {false, S1}
+    end.
