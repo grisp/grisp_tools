@@ -29,7 +29,10 @@ run(Configuration) ->
                 fun grisp_tools_step:version/1
             ]},
             fun grisp_tools_step:collect/1,
-            fun download/1,
+            { repo, [
+                fun check/1,
+                fun clone/1
+            ]},
             {fun prepare/1, [
                 fun clean/1,
                 fun patch/1,
@@ -61,26 +64,28 @@ build(S0) ->
     },
     mapz:deep_merge(S1, #{shell => #{env => Env}}).
 
-download(#{otp_version := {_,_,_,Ver}} = S0) ->
+check(S0) ->
     BuildPath = mapz:deep_get([paths, build], S0),
-    case check_git_repository(BuildPath, S0) of
-        {false, S1}->
-            S2 = delete_directory(BuildPath, S1),
-            URL = grisp_tools_util:env(otp_git_url),
-            Branch = ["OTP-", Ver],
-            % See https://github.com/erlang/rebar3/pull/2660
-            S3 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S2),
-            {{ok, Output}, S4} = shell(S3,
-                "git clone "
-                "-b " ++ Branch ++ " "
-                "--depth 1 " ++
-                "--single-branch " ++
-                URL ++ " " ++ BuildPath
-            ),
-            event(mapz:deep_put([build, download], true, S4), [{output, Output}]);
-        {true, S1} ->
-            event(mapz:deep_put([build, download], false, S1), ['_skip'])
-    end.
+    {State, S1} = check_git_repository(BuildPath, S0),
+    S1#{repo_state => State}.
+
+clone(#{repo_state := up_to_date} = S0) ->
+    event(mapz:deep_put([build, download], false, S0), ['_skip']);
+clone(#{repo_state := _State, otp_version := {_,_,_,Ver}} = S0) ->
+    BuildPath = mapz:deep_get([paths, build], S0),
+    S1 = delete_directory(BuildPath, S0),
+    URL = grisp_tools_util:env(otp_git_url),
+    Branch = ["OTP-", Ver],
+    % See https://github.com/erlang/rebar3/pull/2660
+    S2 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S1),
+    {{ok, Output}, S3} = shell(S2,
+        "git clone "
+        "-b " ++ Branch ++ " "
+        "--depth 1 " ++
+        "--single-branch " ++
+        URL ++ " " ++ BuildPath
+    ),
+    event(mapz:deep_put([build, download], true, S3), [{output, Output}]).
 
 prepare(S0) ->
     Drivers = maps:to_list(mapz:deep_get([build, overlay, drivers], S0)),
@@ -301,7 +306,7 @@ check_git_repository(BuildPath, S0) ->
     Repo = binary_to_list(filename:join(BuildPath, ".git")),
     case filelib:is_dir(Repo) of
         true -> repo_sanity_check(Repo, S0);
-        false -> {false, S0}
+        false -> {git_not_found, S0}
     end.
 
 repo_sanity_check(Repo, S0) ->
@@ -322,10 +327,10 @@ repo_sanity_check(Repo, S0) ->
     run_git_plumbings(PlumbingTests, S0).
 
 run_git_plumbings([], S) ->
-    {true, S};
+    {up_to_date, S};
 run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
     {{ok, Output}, S1} = shell(S0, Cmd),
     case Check(Output) of
         true -> run_git_plumbings(Plumbings, S1);
-        false -> {false, S1}
+        false -> {invalid, S1}
     end.
