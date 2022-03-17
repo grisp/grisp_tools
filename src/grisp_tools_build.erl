@@ -83,7 +83,7 @@ clone(#{repo_state := _State, otp_version := {_,_,_,Ver}} = S0) ->
         "-b " ++ Branch ++ " "
         "--depth 1 " ++
         "--single-branch " ++
-        URL ++ " " ++ BuildPath
+        URL ++ " \"" ++ binary_to_list(BuildPath) ++ "\""
     ),
     event(mapz:deep_put([build, download], true, S3), [{output, Output}]).
 
@@ -287,7 +287,7 @@ run_hooks(S0, Type, Opts) ->
 
 delete_directory(BuildPath, S0) ->
     case filelib:is_dir(BuildPath) of
-        true -> shell_ok(S0, "rm -rf "++BuildPath, []);
+        true -> shell_ok(S0, "rm -rf \"" ++ binary_to_list(BuildPath) ++ "\"", []);
         false -> S0
     end.
 
