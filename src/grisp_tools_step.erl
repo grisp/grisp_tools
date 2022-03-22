@@ -48,11 +48,10 @@ config(S0) ->
 
 version(#{otp_version_requirement := SVersion} = S0) ->
     {Versions, S1} = available_versions(S0),
-    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
-    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
+    {Type, RawVersion} = parse_version_requirement(SVersion),
     {Version, Pre, Build, Full} = parse_version(RawVersion),
     Indexed = lists:zip(lists:seq(1, length(Version)), Version),
-    case find_version({Indexed, Pre, Build, Full}, Versions) of
+    case find_version({Indexed, Pre, Build, Full}, Type, Versions) of
         {error, not_found} ->
             error({otp_version_not_found, SVersion});
         {ok, {[Major|_Version], _Pre, _Build, FoundFull} = Found} ->
@@ -158,12 +157,38 @@ parse_version([Build, Extra1, Extra2, Major, Minor, Patch, Pre, Full]) ->
 parse_version_integer(<<>>) -> <<>>;
 parse_version_integer(Version) -> binary_to_integer(Version).
 
-find_version({[], _, _, _}, []) ->
+parse_version_requirement("=" ++ SVersion) ->
+    {strict, parse_version_name(SVersion)};
+parse_version_requirement(SVersion) ->
+    {fuzzy, parse_version_name(SVersion)}.
+
+parse_version_name(SVersion) ->
+    ReOpts = [extended, global, notempty, {capture, all_names, binary}],
+    {match, [RawVersion]} = re:run(SVersion, ?RE_VERSION, ReOpts),
+    RawVersion.
+
+find_version(Requested, strict, Availables) ->
+    find_version_strict(Requested, Availables);
+find_version(Requested, fuzzy, Availables) ->
+    find_version_fuzzy(Requested, Availables).
+
+find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
+    case lists:filter(fun
+            ({_Ver, P, B, VerFullBin}) 
+              when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
+                true;
+            (_) ->
+                false end, Versions) of
+        [V|_] -> {ok, V};
+        [] -> {error, not_found}
+    end.
+
+find_version_fuzzy({[], _, _, _}, []) ->
     {error, not_found};
-find_version({[], _, _, _}, Versions) ->
+find_version_fuzzy({[], _, _, _}, Versions) ->
     {ok, hd(lists:reverse(lists:sort(Versions)))};
-find_version({[{N, V}|Version], Pre, Build, Full}, Versions) ->
-    find_version(
+find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
+    find_version_fuzzy(
         {Version, Pre, Build, Full},
         lists:filter(fun
             ({Ver, P, B, _F}) when P =:= Pre, B =:= Build ->
@@ -173,9 +198,8 @@ find_version({[{N, V}|Version], Pre, Build, Full}, Versions) ->
         end, Versions)
     ).
 
-version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) when
-    N > length(Version)
-->
+version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) 
+  when N > length(Version) ->
     Extra = case {Pre, Build} of
         {<<>>, <<>>} -> [];
         {Pre, <<>>} -> [iolist_to_binary([Last, "-", Pre])];
