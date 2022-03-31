@@ -90,16 +90,16 @@ cdn_path(otp, #{platform := Platform} = State) ->
 
 paths(Root, Platform, Version, _Hash, _CustomBuild = true) ->
     Dir = otp_dir(Root, Platform, Version),
-    sub_paths(Dir, "");
+    sub_paths([Dir]);
 paths( _, Platform, {_Components, _Pre, _Build, Ver}, Hash, _CustomBuild = false) ->
     Dir = filename:join([cache(), Platform, "otp", Ver]),    
-    sub_paths(Dir, Hash).
+    sub_paths([Dir, Hash]).
 
-sub_paths(Dir, Hash) ->
+sub_paths(Dir) ->
     #{
-        build => filename:join([Dir, Hash, "build"]),
-        install => filename:join([Dir, Hash, "install"]),
-        package => filename:join([Dir, Hash, "package"]),
+        build => filename:join(Dir ++ ["build"]),
+        install => filename:join(Dir ++ ["install"]),
+        package => filename:join(Dir ++ ["package"]),
         package_cache => cache(package)
     }.
 
