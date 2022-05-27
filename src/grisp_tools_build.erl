@@ -330,8 +330,14 @@ repo_sanity_check(Repo, S0) ->
 run_git_plumbings([], S) ->
     {up_to_date, S};
 run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
-    {{ok, Output}, S1} = shell(S0, Cmd),
-    case Check(Output) of
-        true -> run_git_plumbings(Plumbings, S1);
-        false -> {invalid, S1}
+    try shell(S0, Cmd) of
+        {{ok, Output}, S1} ->
+            case Check(Output) of
+                true -> run_git_plumbings(Plumbings, S1);
+                false -> {invalid, S1}
+            end
+    catch
+        _Error ->
+            S1 = event(S0, [{error, Cmd}]),
+            run_git_plumbings(Plumbings, S1)
     end.
