@@ -74,7 +74,13 @@ available_versions(#{custom_build := true} = S0) ->
     ),
     {parse_versions(Output), S1};
 available_versions(#{platform := Platform} = S0) ->
-    PackageVersions = grisp_tools_package:list(#{type => otp, platform => Platform}),
+    PackageVersions =
+        try grisp_tools_package:list_online(#{type => otp, platform => Platform})
+        catch
+            error:_Error ->
+                event(S0, "Could not list packages, using cache ..."),
+                grisp_tools_package:list_local(otp)
+        end,
     Versions = [begin
         {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
         parse_version(Vsn)

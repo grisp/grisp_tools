@@ -26,6 +26,8 @@
 -export([write_file/3]).
 -export([with_file/3]).
 -export([pipe/2]).
+-export([find_files/2]).
+-export([otp_package_cache/0]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -249,7 +251,16 @@ with_file(File, Opts, Fun) ->
 pipe(State, Actions) ->
     lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
 
+otp_package_cache() ->
+    cache(package).
+
+find_files(Dir, Regex) ->
+    find_files(Dir, Regex, true).
+
 %--- Internal ------------------------------------------------------------------
+
+find_files(Dir, Regex, Recursive) ->
+    filelib:fold_files(Dir, Regex, Recursive, fun(F, Acc) -> [F | Acc] end, []).
 
 cache() -> filename:basedir(user_cache, "grisp").
 
