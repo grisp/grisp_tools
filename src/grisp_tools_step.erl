@@ -81,9 +81,7 @@ available_versions(#{custom_build := true} = S0) ->
                     {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
                     parse_version(Vsn)
                 end || V <- lists:usort(VersionNames)],
-            {Versions, S1};
-        _ ->
-            throw(rebar_abort)
+            {Versions, S1}
     end;
 available_versions(#{platform := Platform} = S0) ->
     PackageVersions =

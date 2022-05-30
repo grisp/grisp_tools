@@ -339,7 +339,5 @@ run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
         {{error, { _, "fatal: unable to access 'https://github.com/erlang/otp/': "
                         "Could not resolve host: github.com\n"}}, S1} ->
             S1 = event(S0, [{error, Cmd}]),
-            run_git_plumbings(Plumbings, S1);
-        _ ->
-            throw(rebar_abort)
+            run_git_plumbings(Plumbings, S1)
     end.
