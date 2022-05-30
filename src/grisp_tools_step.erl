@@ -8,7 +8,7 @@
 -export([toolchain/1]).
 
 -import(grisp_tools_util, [event/2]).
--import(grisp_tools_util, [shell/2]).
+-import(grisp_tools_util, [shell/3]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -69,10 +69,20 @@ version(#{otp_version_requirement := SVersion} = S0) ->
     end.
 
 available_versions(#{custom_build := true} = S0) ->
-    {{ok, Output}, S1} = shell(S0,
-        "git ls-remote --tags --refs https://github.com/erlang/otp"
-    ),
-    {parse_versions(Output), S1};
+    Cmd = "git ls-remote --tags --refs https://github.com/erlang/otp",
+    case shell(S0, Cmd, [return_on_error]) of
+        {{ok, Output}, S1} ->
+            {parse_versions(Output), S1};
+        {{error, { _, "fatal: unable to access 'https://github.com/erlang/otp/': "
+                        "Could not resolve host: github.com\n"}}, S1} ->
+            S1 = event(S0, [{error, Cmd}]),
+            VersionNames = list_local_checkouts(S0),
+            Versions = [begin
+                    {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
+                    parse_version(Vsn)
+                end || V <- lists:usort(VersionNames)],
+            {Versions, S1}
+    end;
 available_versions(#{platform := Platform} = S0) ->
     PackageVersions =
         try grisp_tools_package:list_online(#{type => otp, platform => Platform})
@@ -250,3 +260,8 @@ collect_app_files(App, Platform, #{apps := Apps, otp_version_list := Versions} =
 check_toolchain_file(PathElements) ->
     Path = filename:join(PathElements),
     [error({toolchain_root_invalid, Path}) || not filelib:is_file(Path)].
+
+list_local_checkouts(#{project_root := Root, platform := Platform, custom_build := true}) ->
+    Dir = grisp_tools_util:otp_checkout_dir(Root, Platform),
+    {ok, Versions} = file:list_dir(Dir),
+    [ list_to_binary(V) || V <- Versions].

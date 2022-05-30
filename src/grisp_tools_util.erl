@@ -9,6 +9,7 @@
 -export([env/1]).
 -export([cdn_path/2]).
 -export([paths/5]).
+-export([otp_checkout_dir/2]).
 -export([package_name/1]).
 -export([package_cache_temp/1]).
 -export([package_cache_file/1]).
@@ -90,23 +91,15 @@ cdn_path(otp, #{platform := Platform} = State) ->
     Path = lists:join($/, ["platforms", atom_to_binary(Platform), "otp", File]),
     uri_string:resolve(Path, [env(cdn), "/"]).
 
-paths(Root, Platform, Version, _Hash, _CustomBuild = true) ->
-    Dir = otp_dir(Root, Platform, Version),
+paths(Root, Platform, {_Components, _Pre, _Build, Ver}, _Hash, _CustomBuild = true) ->
+    Dir = filename:join(otp_checkout_dir(Root, Platform), Ver),
     sub_paths([Dir]);
 paths( _, Platform, {_Components, _Pre, _Build, Ver}, Hash, _CustomBuild = false) ->
     Dir = filename:join([cache(), Platform, "otp", Ver]),    
     sub_paths([Dir, Hash]).
 
-sub_paths(Dir) ->
-    #{
-        build => filename:join(Dir ++ ["build"]),
-        install => filename:join(Dir ++ ["install"]),
-        package => filename:join(Dir ++ ["package"]),
-        package_cache => cache(package)
-    }.
-
-otp_dir(Root, Platform, {_Components, _Pre, _Build, Ver}) ->
-    filename:join([Root, "_grisp", Platform, "otp", Ver]).
+otp_checkout_dir(Root, Platform) ->
+    filename:join([Root, "_grisp", Platform, "otp"]).
 
 package_name(#{otp_version := {_, _, _, OTPVersion}, build := #{hash := #{value := Hash}}}) ->
     iolist_to_binary(["grisp_otp_build_", OTPVersion, "_", Hash, ".tar.gz"]).
@@ -252,19 +245,25 @@ pipe(State, Actions) ->
     lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
 
 otp_package_cache() ->
-    cache(package).
+    filename:join([cache(), "packages", "otp"]).
 
 find_files(Dir, Regex) ->
-    find_files(Dir, Regex, true).
-
-%--- Internal ------------------------------------------------------------------
+    find_files(Dir, Regex, false).
 
 find_files(Dir, Regex, Recursive) ->
     filelib:fold_files(Dir, Regex, Recursive, fun(F, Acc) -> [F | Acc] end, []).
 
-cache() -> filename:basedir(user_cache, "grisp").
+%--- Internal ------------------------------------------------------------------
 
-cache(package) -> filename:join([cache(), "packages", "otp"]).
+sub_paths(Dir) ->
+    #{
+        build => filename:join(Dir ++ ["build"]),
+        install => filename:join(Dir ++ ["install"]),
+        package => filename:join(Dir ++ ["package"]),
+        package_cache => otp_package_cache()
+    }.
+
+cache() -> filename:basedir(user_cache, "grisp").
 
 collect_c_sources(Dir, Board) ->
     Source = filename:join([Dir, "grisp", Board]),
