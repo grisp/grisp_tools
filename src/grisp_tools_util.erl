@@ -28,7 +28,6 @@
 -export([with_file/3]).
 -export([pipe/2]).
 -export([find_files/2]).
--export([find_files/3]).
 -export([otp_package_cache/0]).
 
 %--- Macros --------------------------------------------------------------------

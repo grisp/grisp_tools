@@ -8,7 +8,7 @@
 -export([toolchain/1]).
 
 -import(grisp_tools_util, [event/2]).
--import(grisp_tools_util, [shell/2]).
+-import(grisp_tools_util, [shell/3]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -70,17 +70,20 @@ version(#{otp_version_requirement := SVersion} = S0) ->
 
 available_versions(#{custom_build := true} = S0) ->
     Cmd = "git ls-remote --tags --refs https://github.com/erlang/otp",
-    try shell(S0, Cmd) of
-        {{ok, Output}, S1} -> {parse_versions(Output), S1}
-    catch
-        _Error ->
+    case shell(S0, Cmd, [return_on_error]) of
+        {{ok, Output}, S1} ->
+            {parse_versions(Output), S1};
+        {{error, { _, "fatal: unable to access 'https://github.com/erlang/otp/': "
+                        "Could not resolve host: github.com\n"}}, S1} ->
             S1 = event(S0, [{error, Cmd}]),
             VersionNames = list_local_checkouts(S0),
             Versions = [begin
                     {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
                     parse_version(Vsn)
                 end || V <- lists:usort(VersionNames)],
-            {Versions, S1}
+            {Versions, S1};
+        _ ->
+            throw(rebar_abort)
     end;
 available_versions(#{platform := Platform} = S0) ->
     PackageVersions =
