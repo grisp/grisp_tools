@@ -89,7 +89,7 @@ available_versions(#{platform := Platform} = S0) ->
         catch
             error:_Error ->
                 event(S0, "Could not list packages, using cache ..."),
-                grisp_tools_package:list_local(otp)
+                grisp_tools_package:list_local(#{type => otp, platform => Platform})
         end,
     Versions = [begin
         {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),

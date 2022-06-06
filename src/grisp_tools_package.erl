@@ -9,8 +9,8 @@
 list_online(#{type := Type, platform := Platform}) ->
     parse(Type, list_bucket(Type, [<<"platforms/">>, atom_to_binary(Platform)])).
 
-list_local(otp) ->
-    Cache = grisp_tools_util:otp_package_cache(),
+list_local(#{type := otp, platform := Platform}) ->
+    Cache = grisp_tools_util:otp_package_cache(Platform),
     Packages = grisp_tools_util:find_files(Cache, ".*\.tar\.gz\$"),
     [ pkg_info(filename:basename(P, ".tar.gz")) || P <- Packages].
 

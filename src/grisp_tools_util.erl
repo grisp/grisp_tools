@@ -28,7 +28,7 @@
 -export([with_file/3]).
 -export([pipe/2]).
 -export([find_files/2]).
--export([otp_package_cache/0]).
+-export([otp_package_cache/1]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -93,10 +93,10 @@ cdn_path(otp, #{platform := Platform} = State) ->
 
 paths(Root, Platform, {_Components, _Pre, _Build, Ver}, _Hash, _CustomBuild = true) ->
     Dir = filename:join(otp_checkout_dir(Root, Platform), Ver),
-    sub_paths([Dir]);
+    sub_paths([Dir], Platform);
 paths( _, Platform, {_Components, _Pre, _Build, Ver}, Hash, _CustomBuild = false) ->
     Dir = filename:join([cache(), Platform, "otp", Ver]),    
-    sub_paths([Dir, Hash]).
+    sub_paths([Dir, Hash], Platform).
 
 otp_checkout_dir(Root, Platform) ->
     filename:join([Root, "_grisp", Platform, "otp"]).
@@ -244,8 +244,8 @@ with_file(File, Opts, Fun) ->
 pipe(State, Actions) ->
     lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
 
-otp_package_cache() ->
-    filename:join([cache(), "packages", "otp"]).
+otp_package_cache(Platform) ->
+    filename:join([cache(), "packages", Platform, "otp"]).
 
 find_files(Dir, Regex) ->
     find_files(Dir, Regex, false).
@@ -255,12 +255,12 @@ find_files(Dir, Regex, Recursive) ->
 
 %--- Internal ------------------------------------------------------------------
 
-sub_paths(Dir) ->
+sub_paths(Dir, Platform) ->
     #{
         build => filename:join(Dir ++ ["build"]),
         install => filename:join(Dir ++ ["install"]),
         package => filename:join(Dir ++ ["package"]),
-        package_cache => otp_package_cache()
+        package_cache => otp_package_cache(Platform)
     }.
 
 cache() -> filename:basedir(user_cache, "grisp").
