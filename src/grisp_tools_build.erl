@@ -330,8 +330,14 @@ repo_sanity_check(Repo, S0) ->
 run_git_plumbings([], S) ->
     {up_to_date, S};
 run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
-    {{ok, Output}, S1} = shell(S0, Cmd),
-    case Check(Output) of
-        true -> run_git_plumbings(Plumbings, S1);
-        false -> {invalid, S1}
+    case shell(S0, Cmd, [return_on_error]) of
+        {{ok, Output}, S1} ->
+            case Check(Output) of
+                true -> run_git_plumbings(Plumbings, S1);
+                false -> {invalid, S1}
+            end;
+        {{error, { _, "fatal: unable to access 'https://github.com/erlang/otp/': "
+                        "Could not resolve host: github.com\n"}}, S1} ->
+            S1 = event(S0, [{error, Cmd}]),
+            run_git_plumbings(Plumbings, S1)
     end.

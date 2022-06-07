@@ -1,12 +1,18 @@
 -module(grisp_tools_package).
 
 % API
--export([list/1]).
+-export([list_online/1]).
+-export([list_local/1]).
 
 %--- API -----------------------------------------------------------------------
 
-list(#{type := Type, platform := Platform}) ->
+list_online(#{type := Type, platform := Platform}) ->
     parse(Type, list_bucket(Type, [<<"platforms/">>, atom_to_binary(Platform)])).
+
+list_local(#{type := otp, platform := Platform}) ->
+    Cache = grisp_tools_util:otp_package_cache(Platform),
+    Packages = grisp_tools_util:find_files(Cache, ".*\.tar\.gz\$"),
+    [ pkg_info(filename:basename(P, ".tar.gz")) || P <- Packages].
 
 %--- Internal ------------------------------------------------------------------
 
@@ -147,3 +153,8 @@ flag_latest([#{os := OS, name := Name} = Toolchain|Toolchains], Latest) ->
 components(Package) ->
     Basename = filename:basename(Package, <<".tar.gz">>),
     string:split(Basename, <<"_">>, all).
+
+pkg_info(Filename) ->
+    Name = list_to_binary(Filename),
+    [_,_,_, OTPVersion, Hash] = string:split(Filename, "_", all),
+    #{name => Name, version => OTPVersion, hash => Hash}.
