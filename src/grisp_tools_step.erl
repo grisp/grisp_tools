@@ -73,15 +73,15 @@ available_versions(#{custom_build := true} = S0) ->
     case shell(S0, Cmd, [return_on_error]) of
         {{ok, Output}, S1} ->
             {parse_versions(Output), S1};
-        {{error, { _, "fatal: unable to access 'https://github.com/erlang/otp/': "
-                        "Could not resolve host: github.com\n"}}, S1} ->
-            S1 = event(S0, [{error, Cmd}]),
-            VersionNames = list_local_checkouts(S0),
+        {{error, {_, "fatal: unable to access 'https://github.com/erlang/otp/': "
+                     "Could not resolve host: github.com\n" = Output}}, S1} ->
+            S2 = event(S1, [{error, Cmd, Output}]),
+            VersionNames = list_local_checkouts(S2),
             Versions = [begin
                     {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
                     parse_version(Vsn)
                 end || V <- lists:usort(VersionNames)],
-            {Versions, S1}
+            {Versions, S2}
     end;
 available_versions(#{platform := Platform} = S0) ->
     {PackageVersions, S2} = list_otp_packages(Platform, S0),

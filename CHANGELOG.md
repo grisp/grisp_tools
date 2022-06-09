@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Log Git remote listing command output in case of failure
+
 ### Fixed
 
 - Do not attempt to download if using OTP package cache
