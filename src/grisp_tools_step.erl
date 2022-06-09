@@ -84,18 +84,12 @@ available_versions(#{custom_build := true} = S0) ->
             {Versions, S1}
     end;
 available_versions(#{platform := Platform} = S0) ->
-    PackageVersions =
-        try grisp_tools_package:list_online(#{type => otp, platform => Platform})
-        catch
-            error:_Error ->
-                event(S0, "Could not list packages, using cache ..."),
-                grisp_tools_package:list_local(#{type => otp, platform => Platform})
-        end,
+    {PackageVersions, S2} = list_otp_packages(Platform, S0),
     Versions = [begin
         {match, [Vsn]} = re:run(V, ?RE_VERSION, [extended, global, notempty, {capture, all_names, binary}]),
         parse_version(Vsn)
     end || V <- lists:usort([V1 || #{version := V1} <- PackageVersions])],
-    {Versions, S0}.
+    {Versions, S2}.
 
 apps(#{apps := Apps} = State0) ->
     Graph = digraph:new([acyclic]),
@@ -265,3 +259,18 @@ list_local_checkouts(#{project_root := Root, platform := Platform, custom_build 
     Dir = grisp_tools_util:otp_checkout_dir(Root, Platform),
     {ok, Versions} = file:list_dir(Dir),
     [ list_to_binary(V) || V <- Versions].
+
+list_otp_packages(Platform, S0) ->
+    List = fun(Source) ->
+        grisp_tools_package:list(#{
+            type => otp,
+            platform => Platform,
+            source => Source
+        })
+    end,
+    try
+        {List(online), S0#{package_source => online}}
+    catch
+        error:{connection_error, _} = Error ->
+            {List(cache), event(S0#{package_source => cache}, [Error])}
+    end.

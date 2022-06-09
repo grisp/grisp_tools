@@ -1,24 +1,27 @@
 -module(grisp_tools_package).
 
 % API
--export([list_online/1]).
--export([list_local/1]).
+-export([list/1]).
 
 %--- API -----------------------------------------------------------------------
 
-list_online(#{type := Type, platform := Platform}) ->
-    parse(Type, list_bucket(Type, [<<"platforms/">>, atom_to_binary(Platform)])).
-
-list_local(#{type := otp, platform := Platform}) ->
+list(#{type := otp, platform := Platform, source := cache}) ->
     Cache = grisp_tools_util:otp_package_cache(Platform),
     Packages = grisp_tools_util:find_files(Cache, ".*\.tar\.gz\$"),
-    [ pkg_info(filename:basename(P, ".tar.gz")) || P <- Packages].
+    [pkg_info(filename:basename(P, ".tar.gz")) || P <- Packages];
+list(#{type := Type, platform := Platform, source := online}) ->
+    parse(Type, list_bucket(Type, [<<"platforms/">>, atom_to_binary(Platform)]));
+list(#{type := Type, source := Source}) ->
+    error({not_implemented, Type, Source}).
 
 %--- Internal ------------------------------------------------------------------
 
 list_bucket(Type, Root) ->
     Bucket = <<"grisp.s3.amazonaws.com">>,
-    {ok, Client} = hackney:connect(hackney_ssl, Bucket, 443, [with_body]),
+    Client = case hackney:connect(hackney_ssl, Bucket, 443, [with_body]) of
+        {ok, C} -> C;
+        {error, Reason} -> error({connection_error, Reason})
+    end,
     Prefix = iolist_to_binary([Root, $/, atom_to_binary(Type), $/]),
     list_bucket(Client, Type, [<<"https://">>, Bucket], Prefix, undefined, []).
 

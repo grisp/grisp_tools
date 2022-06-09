@@ -69,6 +69,8 @@ init(State0) ->
     rm(Tmp),
     mapz:deep_merge([State1, #{package => #{file => File, tmp => Tmp}}]).
 
+download(#{package_source := cache} = State0) ->
+    event(State0, ['_skip']);
 download(#{package := #{meta := Meta}} = State0) ->
     Client = http_init(),
     URI = grisp_tools_util:cdn_path(otp, State0),
@@ -86,8 +88,8 @@ download(#{package := #{meta := Meta}} = State0) ->
     end,
     State2.
 
-extract(#{package := #{state := State, file := File}} = State0) 
-        when (State == downloaded) or (State == not_modified) ->   
+extract(#{package := #{state := State, file := File}} = State0)
+        when (State == downloaded) or (State == not_modified) ->
     #{paths := #{install := InstallPath}} = State0,
     case filelib:is_dir(InstallPath) of
         true -> event(State0, ['_skip']);

@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Do not attempt to download if using OTP package cache
+
 ## [2.3.0] - 2022-06-07
 
 ### Added
