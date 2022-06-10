@@ -144,7 +144,7 @@ copy_files(State0, Type, SubDir) ->
             lists:foldl(fun(F, S) -> copy_file(Target, F, S) end, State0, Files)
     end.
 
-configure(#{build := Build} = S0) ->
+configure(#{build := Build, otp_version := {[Ver | _], _, _, _}} = S0) ->
     #{
         download := WasDownloaded,
         flags := #{clean := DidClean, configure := ShouldConfigure}
@@ -158,8 +158,10 @@ configure(#{build := Build} = S0) ->
                 {_, _, _} -> S0
             end,
             Opts = [{cd, mapz:deep_get([paths, build], S1)}],
-            % TODO: Remove autoconf step when supporting only 23.3+ (not needed)
-            S2 = build_step("./otp_build autoconf", Opts, S1),
+            S2 = if
+                Ver < 24 -> build_step("./otp_build autoconf", Opts, S1);
+                true -> S1
+            end,
             XCompConf = mapz:deep_get([build, config, xcomp_conf], S2),
             Command = [
                 "./otp_build configure ",
@@ -168,7 +170,6 @@ configure(#{build := Build} = S0) ->
                 % Disable apps not built for target
                 " --without-debugger",
                 " --without-dialyzer",
-                " --without-erl_interface",
                 " --without-et",
                 " --without-hipe",
                 " --without-javac",

@@ -181,7 +181,8 @@ collect_overlay(Dir, Platform, Versions, Init, CollectFun) ->
 merge_build_config(C1, C2) ->
     mapz:deep_merge(C1, C2).
 
-build_hash(#{build := #{overlay := #{hooks := Hooks} = Overlay}}) ->
+build_hash(#{build := #{overlay := Overlay}}) ->
+    Hooks = maps:get(hooks, Overlay, #{}),
     AllHooks = maps:from_list([{N, I} || {_T, F} <- maps:to_list(Hooks), {N, I} <- maps:to_list(F)]),
     HashIndex = lists:sort(maps:fold(fun
         (_Type, Files, Acc) ->
