@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [2.4.0] - 2022-07-18
 
-## Added
+### Added
 
 - Support for OTP 24
 
@@ -127,9 +127,10 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.3.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.4.0...HEAD
+[2.4.0]: https://github.com/grisp/grisp_tools/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/grisp/grisp_tools/compare/2.2.2...2.3.0
-[2.2.1]: https://github.com/grisp/grisp_tools/compare/2.2.1...2.2.2
+[2.2.2]: https://github.com/grisp/grisp_tools/compare/2.2.1...2.2.2
 [2.2.1]: https://github.com/grisp/grisp_tools/compare/2.2.0...2.2.1
 [2.2.0]: https://github.com/grisp/grisp_tools/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp_tools/compare/2.0.0...2.1.0
