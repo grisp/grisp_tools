@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.4.0] - 2022-07-18
+
+## Added
+
+- Support for OTP 24
+
 ### Changed
 
 - Log Git remote listing command output in case of failure
