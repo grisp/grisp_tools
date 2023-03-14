@@ -16,24 +16,46 @@ run(State) ->
         fun grisp_tools_step:config/1,
         {report, [
             fun clean/1,
-            fun project_settings/1,
             {validate, [
                 fun grisp_tools_step:apps/1,
                 fun grisp_tools_step:version/1
             ]},
             fun grisp_tools_step:collect/1,
-            fun hash_index/1,
-            fun build_overlay/1,
+            fun write_report/1,
             fun tar/1
         ]}
     ]).
 
 %--- Tasks ---------------------------------------------------------------------
 
+
+clean(#{flags := #{tar := true}} = S0) -> S0;
 clean(#{report_dir := ReportDir} = S0) ->
     Cmd = lists:append(["rm -r ", ReportDir, " "]),
     {_, S1} = shell(S0, Cmd, [return_on_error]),
-    event(S1, [info, ReportDir]).
+    S1.
+
+write_report(#{flags := #{tar := true}} = S0) -> event(S0, [skip]);
+write_report(#{report_dir := ReportDir} = S0) ->
+    S1 = grisp_tools_util:pipe(S0, [
+        fun hash_index/1,
+        fun build_overlay/1,
+        fun project_settings/1
+    ]),
+    event(S1, [{new_report, ReportDir}]).
+
+tar(#{flags := #{tar := false}} = S0) -> S0;
+tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
+    case filelib:is_dir(ReportDir) of
+        false ->
+            event(S0, [{error, no_report}]);
+        true ->
+            TarFile = filename:join(filename:dirname(ReportDir), "report.tar.gz"),
+            Cmd = lists:append(["tar -czvf ", TarFile, " -C ", ReportDir, " ."]),
+            {{ok, _Res}, S1} = shell(S0, Cmd),
+            event(S1, [TarFile])
+    end.
+% helpers ----------------------------------------------------------------------
 
 project_settings(S0) ->
     S1 = copy_project_file("rebar.config", S0),
@@ -63,12 +85,6 @@ build_overlay(#{
     file:write_file(BuildInfo, io_lib:format("~p~n", [BuildOverlay2])),
     event(S, [write, BuildInfo]).
 
-tar(#{flags := #{tar := false}} = S0) -> S0;
-tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
-    TarFile = filename:join(filename:dirname(ReportDir), "report.tar.gz"),
-    Cmd = lists:append(["tar -czvf ", TarFile, " -C ", ReportDir, " ."]),
-    {{ok, _Res}, S1} = shell(S0, Cmd),
-    event(S1, [TarFile]).
 
 % Helpers
 
