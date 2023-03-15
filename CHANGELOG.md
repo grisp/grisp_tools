@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+## Added
+
+- Implementation of the `report` command: [#74](https://github.com/grisp/rebar3_grisp/pull/74)
+
 ## [2.4.0] - 2022-07-18
 
 ### Added
