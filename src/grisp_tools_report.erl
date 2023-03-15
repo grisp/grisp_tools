@@ -113,5 +113,4 @@ strip_absolute_paths(Term, _) ->
     Term.
 
 format_datetime() ->
-    {{Y,Mo,W},{H,Mi,S}} = calendar:local_time(),
-    io_lib:format("~p-~p-~p_~p-~p-~p", [Y, Mo, W, H, Mi, S]).
+    calendar:system_time_to_rfc3339(erlang:system_time(second)).
