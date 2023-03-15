@@ -34,14 +34,17 @@ clean(#{report_dir := ReportDir} = S0) ->
     {_, S1} = shell(S0, Cmd, [return_on_error]),
     S1.
 
-write_report(#{flags := #{tar := true}} = S0) -> event(S0, [skip]);
-write_report(#{report_dir := ReportDir} = S0) ->
-    S1 = grisp_tools_util:pipe(S0, [
-        fun hash_index/1,
-        fun build_overlay/1,
-        fun project_settings/1
-    ]),
-    event(S1, [{new_report, ReportDir}]).
+write_report(#{report_dir := ReportDir, flags := #{tar := Tar}} = S0) ->
+    case {filelib:is_dir(ReportDir), Tar} of
+        {true, true} -> event(S0, [skip]);
+        _ ->
+            S1 = grisp_tools_util:pipe(S0, [
+                fun hash_index/1,
+                fun build_overlay/1,
+                fun project_settings/1
+            ]),
+            event(S1, [{new_report, ReportDir}])
+    end.
 
 tar(#{flags := #{tar := false}} = S0) -> S0;
 tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
