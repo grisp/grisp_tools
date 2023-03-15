@@ -32,9 +32,7 @@ clean(#{flags := #{tar := true}} = S0) -> S0;
 clean(#{report_dir := ReportDir} = S0) ->
     Cmd = lists:append(["rm -r ", ReportDir]),
     {_, S1} = shell(S0, Cmd, [return_on_error]),
-    Cmd2 = lists:append(["rm ", ReportDir, ".tar.gz"]),
-    {_, S2} = shell(S1, Cmd2, [return_on_error]),
-    S2.
+    S1.
 
 write_report(#{flags := #{tar := true}} = S0) -> event(S0, [skip]);
 write_report(#{report_dir := ReportDir} = S0) ->
@@ -51,10 +49,12 @@ tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
         false ->
             event(S0, [{error, no_report}]);
         true ->
-            TarFile = ReportDir ++ ".tar.gz",
-            Cmd = lists:append(["tar -czvf ", TarFile, " -C ", ReportDir, " ."]),
+            Dir = filename:dirname(ReportDir),
+            TarFilename = "grisp-report_" ++ format_datetime() ++ ".tar.gz",
+            TarPath = filename:join(Dir, TarFilename),
+            Cmd = lists:append(["tar -czvf ", TarPath, " -C ", ReportDir, " ."]),
             {{ok, _Res}, S1} = shell(S0, Cmd),
-            event(S1, [TarFile])
+            event(S1, [TarPath])
     end.
 
 %--- Internal ------------------------------------------------------------------
@@ -87,7 +87,8 @@ build_overlay(#{
     file:write_file(BuildInfo, io_lib:format("~p~n", [BuildOverlay2])),
     event(S, [write, BuildInfo]).
 
-copy_project_file(Filename, #{project_root := Root, report_dir := ReportDir} = S0) ->
+copy_project_file(Filename, #{project_root := Root,
+                              report_dir := ReportDir} = S0) ->
     Src = filename:join(Root, Filename),
     Dst = filename:join(ReportDir, Filename),
     Copy = #{source => Src, target => Dst},
@@ -110,3 +111,7 @@ strip_absolute_paths(Term, Seam) when is_map(Term) ->
                                                         <- maps:to_list(Term)]);
 strip_absolute_paths(Term, _) ->
     Term.
+
+format_datetime() ->
+    {{Y,Mo,W},{H,Mi,S}} = calendar:local_time(),
+    io_lib:format("~p-~p-~p_~p-~p-~p", [Y, Mo, W, H, Mi, S]).
