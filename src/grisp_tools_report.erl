@@ -28,7 +28,6 @@ run(State) ->
 
 %--- Tasks ---------------------------------------------------------------------
 
-
 clean(#{flags := #{tar := true}} = S0) -> S0;
 clean(#{report_dir := ReportDir} = S0) ->
     Cmd = lists:append(["rm -r ", ReportDir, " "]),
@@ -55,7 +54,8 @@ tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
             {{ok, _Res}, S1} = shell(S0, Cmd),
             event(S1, [TarFile])
     end.
-% helpers ----------------------------------------------------------------------
+
+%--- Internal ------------------------------------------------------------------
 
 project_settings(S0) ->
     S1 = copy_project_file("rebar.config", S0),
@@ -84,9 +84,6 @@ build_overlay(#{
     BuildOverlay2 = strip_absolute_paths(BuildOverlay, ProjectForlder),
     file:write_file(BuildInfo, io_lib:format("~p~n", [BuildOverlay2])),
     event(S, [write, BuildInfo]).
-
-
-% Helpers
 
 copy_project_file(Filename, #{project_root := Root, report_dir := ReportDir} = S0) ->
     Src = filename:join(Root, Filename),
