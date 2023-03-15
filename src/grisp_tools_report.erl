@@ -30,9 +30,11 @@ run(State) ->
 
 clean(#{flags := #{tar := true}} = S0) -> S0;
 clean(#{report_dir := ReportDir} = S0) ->
-    Cmd = lists:append(["rm -r ", ReportDir, " "]),
+    Cmd = lists:append(["rm -r ", ReportDir]),
     {_, S1} = shell(S0, Cmd, [return_on_error]),
-    S1.
+    Cmd2 = lists:append(["rm ", ReportDir, ".tar.gz"]),
+    {_, S2} = shell(S1, Cmd2, [return_on_error]),
+    S2.
 
 write_report(#{flags := #{tar := true}} = S0) -> event(S0, [skip]);
 write_report(#{report_dir := ReportDir} = S0) ->
@@ -49,7 +51,7 @@ tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
         false ->
             event(S0, [{error, no_report}]);
         true ->
-            TarFile = filename:join(filename:dirname(ReportDir), "report.tar.gz"),
+            TarFile = ReportDir ++ ".tar.gz",
             Cmd = lists:append(["tar -czvf ", TarFile, " -C ", ReportDir, " ."]),
             {{ok, _Res}, S1} = shell(S0, Cmd),
             event(S1, [TarFile])
