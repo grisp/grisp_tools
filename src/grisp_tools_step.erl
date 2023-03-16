@@ -185,7 +185,7 @@ find_version(Requested, fuzzy, Availables) ->
 
 find_version_strict({_VN_list, Pre, Build, Full}, Versions) ->
     case lists:filter(fun
-            ({_Ver, P, B, VerFullBin}) 
+            ({_Ver, P, B, VerFullBin})
               when P =:= Pre, B =:= Build, VerFullBin =:= Full ->
                 true;
             (_) ->
@@ -209,7 +209,7 @@ find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
         end, Versions)
     ).
 
-version_list({Version, Pre, Build, _Full}, N, [Last|_] = List) 
+version_list({Version, Pre, Build, _Full}, N, [Last|_] = List)
   when N > length(Version) ->
     Extra = case {Pre, Build} of
         {<<>>, <<>>} -> [];
