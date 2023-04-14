@@ -123,6 +123,7 @@ collect(#{project_root := Root, platform := Platform,
     }),
     mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S3).
 
+toolchain(#{build := #{flags := #{docker := true}}} = S0) -> S0;
 toolchain(S0) ->
     ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
     [error({toolchain_root_invalid, ToolchainRoot}) || not filelib:is_dir(ToolchainRoot)],

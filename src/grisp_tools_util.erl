@@ -95,7 +95,7 @@ paths(Root, Platform, {_Components, _Pre, _Build, Ver}, _Hash, _CustomBuild = tr
     Dir = filename:join(otp_checkout_dir(Root, Platform), Ver),
     sub_paths([Dir], Platform);
 paths( _, Platform, {_Components, _Pre, _Build, Ver}, Hash, _CustomBuild = false) ->
-    Dir = filename:join([cache(), Platform, "otp", Ver]),    
+    Dir = filename:join([cache(), Platform, "otp", Ver]),
     sub_paths([Dir, Hash], Platform).
 
 otp_checkout_dir(Root, Platform) ->
