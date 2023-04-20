@@ -250,7 +250,6 @@ tar(S0) ->
 
 build_step(Command, Opts, #{build := #{flags := #{docker := true}}} = S0) ->
     NewCommand = dockerize_command(Command, S0),
-    io:format("Final Cmd: ~p~n",[NewCommand]),
     {{ok, Output}, State1} = shell(S0, NewCommand, Opts),
     event(State1, [{output, Output}]);
 build_step(Command, Opts, State0) ->
