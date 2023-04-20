@@ -56,6 +56,7 @@ run(Configuration) ->
 %--- Internal Steps ------------------------------------------------------------
 
 build(#{build := #{flags := #{docker := true}}} = S0) ->
+    % Skip setting envs that are already in the docker image
     S1 = event(S0, [{platform, maps:get(platform, S0)}]),
     mapz:deep_merge(S1, #{shell => #{env => #{}}});
 build(S0) ->
