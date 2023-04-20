@@ -266,7 +266,7 @@ dockerize_command(Cmd, #{shell := #{env := Env}} = S0) ->
     ["docker run",
     [" -e " ++ K ++ "=" ++ io_lib:format("~s", [V])|| {K,V} <- maps:to_list(Env)],
     " --volume " ++ Cwd ++ ":" ++ Cwd,
-    " grisp2-rtems-toolchain sh -c \"cd " ++ Cwd ++ BuildSubdir,
+    " grisp/grisp2-rtems-toolchain sh -c \"cd " ++ Cwd ++ BuildSubdir,
     " && " , Cmd, "\""].
 
 apply_patch({Name, Patch}, State0) ->
