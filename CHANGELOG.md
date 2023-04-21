@@ -11,6 +11,7 @@ and this project adheres to
 ## Added
 
 - Implementation of the `report` command: [#74](https://github.com/grisp/rebar3_grisp/pull/74)
+- Support for docker toolchains [#20](https://github.com/grisp/grisp_tools/pull/20)
 
 ## [2.4.0] - 2022-07-18
 
