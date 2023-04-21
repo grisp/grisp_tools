@@ -8,10 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-## Added
+## [2.5.0] - 2022-04-21
+
+### Added
 
 - Implementation of the `report` command: [#74](https://github.com/grisp/rebar3_grisp/pull/74)
-- Support for docker toolchains [#20](https://github.com/grisp/grisp_tools/pull/20)
+- Support for `docker` toolchain images [#20](https://github.com/grisp/grisp_tools/pull/20)
 
 ## [2.4.0] - 2022-07-18
 
@@ -132,7 +134,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.4.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.5.0...HEAD
+[2.5.0]: https://github.com/grisp/grisp_tools/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/grisp/grisp_tools/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/grisp/grisp_tools/compare/2.2.2...2.3.0
 [2.2.2]: https://github.com/grisp/grisp_tools/compare/2.2.1...2.2.2
