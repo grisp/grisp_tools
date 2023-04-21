@@ -55,9 +55,12 @@ run(Configuration) ->
 
 %--- Internal Steps ------------------------------------------------------------
 
-build(S0) ->
+build(#{paths := #{toolchain := {docker, _Image}}} = S0) ->
+    % Skip setting envs that are already in the docker image
     S1 = event(S0, [{platform, maps:get(platform, S0)}]),
-    ToolchainRoot = mapz:deep_get([paths, toolchain], S1),
+    mapz:deep_merge(S1, #{shell => #{env => #{}}});
+build(#{paths := #{toolchain := {directory, ToolchainRoot}}} = S0) ->
+    S1 = event(S0, [{platform, maps:get(platform, S0)}]),
     PATH = os:getenv("PATH"),
     Env = #{
         "GRISP_TC_ROOT" => ToolchainRoot,
@@ -197,11 +200,16 @@ install(S0) ->
 
     grisp_tools_util:ensure_dir(filename:join(InstallPath, ".")),
     S1 = grisp_tools_util:pipe(S0, [
-        fun(S) -> shell_ok(S, ["rm -rf ", filename:join(InstallPath, "*")], [{cd, InstallPath}]) end,
-        fun(S) -> shell_ok(S, ["make install DESTDIR=", $", InstallPath, $"], [{cd, BuildPath}]) end
+        fun(S) -> shell_ok(S,
+                           ["rm -rf ", filename:join(InstallPath, "*")],
+                           [{cd, InstallPath}]) end,
+        fun(S) -> shell_ok(S,
+                           ["make install DESTDIR=", $", InstallPath, $"],
+                           [{cd, BuildPath}]) end
     ]),
 
-    [ERTS] = filelib:wildcard(to_list(filename:join(InstallPath, "lib/erlang/erts-*"))),
+    [ERTS] = filelib:wildcard(to_list(filename:join(InstallPath,
+                                                    "lib/erlang/erts-*"))),
     Ver = lists:last(string:split(ERTS, "-", trailing)),
 
     S2 = mapz:deep_merge(S1, #{shell => #{env => #{
@@ -212,19 +220,27 @@ install(S0) ->
     run_hooks(S2, post_install, [{cd, InstallPath}]).
 
 post(#{build := #{hash := #{index := Index}}} = S0) ->
-    PackageListing = filename:join(mapz:deep_get([paths, install], S0), "GRISP_PACKAGE_FILES"),
+    PackageListing = filename:join(mapz:deep_get([paths, install], S0),
+                                   "GRISP_PACKAGE_FILES"),
     ok = file:write_file(PackageListing, grisp_tools_util:build_hash_format(Index)),
 
-    % info("Copying revision string into install dir"),
-    ToolchainRoot = mapz:deep_get([paths, toolchain], S0),
     InstallPath = mapz:deep_get([paths, install], S0),
-    RevSource = filename:join([ToolchainRoot, "GRISP_TOOLCHAIN_REVISION"]),
     RevDestination = filename:join(InstallPath, "GRISP_TOOLCHAIN_REVISION"),
-    case file:copy(RevSource, RevDestination) of
-        {ok, _} -> ok;
-        _ -> error({missing_toolchain_revision, RevSource})
-    end,
-    S0.
+    Toolchain = mapz:deep_get([paths, toolchain], S0),
+    case Toolchain of
+        {directory, ToolchainRoot} ->
+            RevSource = filename:join([ToolchainRoot, "GRISP_TOOLCHAIN_REVISION"]),
+            case file:copy(RevSource, RevDestination) of
+                {ok, _} -> S0;
+                _ -> error({missing_toolchain_revision, RevSource})
+            end;
+        {docker, _Image} ->
+            Cmd = "cat /grisp2-rtems-toolchain/rtems/5/GRISP_TOOLCHAIN_REVISION",
+            DockerCmd = dockerize_command(Cmd, S0),
+            {{ok, RevisionString}, S1} = shell(S0, DockerCmd, []),
+            ok = file:write_file(RevDestination, RevisionString),
+            S1
+    end.
 
 tar(#{build := #{flags := #{tar := true}}} = S0) ->
     #{paths := #{package := PackagePath, install := InstallPath}} = S0,
@@ -236,23 +252,43 @@ tar(#{build := #{flags := #{tar := true}}} = S0) ->
 tar(S0) ->
     event(S0, ['_skip']).
 
-build_step(Command, Opts, State0) ->
-    {{ok, Output}, State1} = shell(State0, Command, Opts),
+build_step(Command, Opts, S0) ->
+    Toolchain = mapz:deep_get([paths, toolchain], S0),
+    ShellCmd = case Toolchain of
+        {docker, _} -> dockerize_command(Command, S0);
+        {directory, _ } -> Command
+    end,
+    {{ok, Output}, State1} = shell(S0, ShellCmd, Opts),
     event(State1, [{output, Output}]).
 
 %--- Internal ------------------------------------------------------------------
+
+dockerize_command(Cmd, S0) ->
+    {ok, Cwd} = file:get_cwd(),
+    Env = mapz:deep_get([shell, env], S0),
+    BuidPath = binary_to_list(mapz:deep_get([paths, build], S0)),
+    {docker, Image} = mapz:deep_get([paths, toolchain], S0),
+    BuildSubdir = string:prefix(BuidPath, Cwd),
+    ["docker run",
+    [" -e " ++ K ++ "=" ++ io_lib:format("~s",[V])|| {K,V} <- maps:to_list(Env)],
+    " --volume " ++ Cwd ++ ":" ++ Cwd,
+    " " ++ Image ++ " sh -c \"cd " ++ Cwd ++ BuildSubdir,
+    " && " , Cmd, "\""].
 
 apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
     Context = mapz:deep_get([build, context], State0),
     grisp_tools_util:write_file(Dir, Patch, Context),
-    State4 = case shell(State0, ["git apply ", Name, " --ignore-whitespace --reverse --check"],
-            [{cd, Dir}, return_on_error]) of
+    State4 = case shell(State0,
+                ["git apply ", Name, " --ignore-whitespace --reverse --check"],
+                [{cd, Dir}, return_on_error]) of
         {{ok, _Output}, State1} ->
             event(State1, [{skip, Patch}]);
         {{error, {1, _}}, State1} ->
             State2 = event(State1, [{apply, Patch}]),
-            {{ok, _}, State3} = shell(State2, "git apply --ignore-whitespace " ++ Name, [{cd, Dir}]),
+            {{ok, _}, State3} = shell(State2,
+                                      "git apply --ignore-whitespace " ++ Name,
+                                      [{cd, Dir}]),
             State3
     end,
     {{ok, _}, State5} = shell(State4, "rm " ++ Name, [{cd, Dir}]),
@@ -274,7 +310,7 @@ copy_file(Root, File, State0) ->
     grisp_tools_util:write_file(Root, File, Context),
     State1.
 
-run_hooks(S0, Type, Opts) ->
+run_hooks(#{paths := #{toolchain := {ToolchainType, _}}} = S0, Type, Opts) ->
     Hooks = mapz:deep_get([build, overlay, hooks, Type], S0, []),
     case maps:size(Hooks) of
         0 ->
@@ -283,7 +319,11 @@ run_hooks(S0, Type, Opts) ->
             S1 = event(S0, [hook, Type]),
             lists:foldl(fun({_Name, #{source := Source} = Hook}, S2) ->
                 S3 = event(S2, [hook, Type, {run, Hook}]),
-                shell_ok(S3, Source, Opts)
+                Cmd = case ToolchainType of
+                    docker -> dockerize_command(Source, S0);
+                    directory -> Source
+                end,
+                shell_ok(S3, Cmd, Opts)
             end, S1, lists:sort(maps:to_list(Hooks)))
     end.
 
@@ -304,7 +344,7 @@ relative(Path) ->
     {ok, CWD} = file:get_cwd(),
     string:trim(string:prefix(Path, CWD), leading, "/").
 
-check_git_repository(BuildPath, S0) -> 
+check_git_repository(BuildPath, S0) ->
     Repo = binary_to_list(filename:join(BuildPath, ".git")),
     case filelib:is_dir(Repo) of
         true -> repo_sanity_check(Repo, S0);
@@ -314,12 +354,12 @@ check_git_repository(BuildPath, S0) ->
 repo_sanity_check(Repo, S0) ->
     PlumbingTests = [
         {
-            "git --git-dir "++ Repo ++" fetch --dry-run", 
+            "git --git-dir "++ Repo ++" fetch --dry-run",
             fun("") -> true; (_) -> false end
         },
         {
-            "git --git-dir "++ Repo ++" describe --tags", 
-            fun(Out) -> 
+            "git --git-dir "++ Repo ++" describe --tags",
+            fun(Out) ->
                 {_,_,_,V} = maps:get(otp_version, S0),
                 VersionTag = "OTP-"++binary_to_list(V)++"\n",
                 case Out of VersionTag -> true; _ -> false end
