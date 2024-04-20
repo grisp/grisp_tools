@@ -5,5 +5,25 @@
 
 %--- API -----------------------------------------------------------------------
 
-run(Configuration) ->
-    Configuration.
+
+run(State) ->
+    List = settings(),
+    lists:foldl(
+        fun(Setting, Acc) ->
+            ask(Setting, Acc)
+        end,
+        State,
+        List).
+
+
+ask(_, #{flags := #{yes := true}} = State) ->
+    State;
+ask({Prompt, Key, Type}, #{flags := Flags} = State) ->
+    Default = maps:get(Key, Flags),
+    Value = grisp_tools_io:ask(Prompt, Type, Default),
+    State#{flags => Flags#{Key => Value}}.
+
+settings() -> [
+    {"App name", name, string},
+    {"Erlang version", otp_version, string}
+].
