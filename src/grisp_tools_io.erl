@@ -38,6 +38,10 @@ continue(Prompt, TransFun, Type, Default) ->
 
 default(none) ->
     [];
+default(false) ->
+    "(y/N)";
+default(true) ->
+    "(Y/n)";
 default(Default) ->
     [" (", io_lib:format("~p", [Default]) , ")"].
 
@@ -46,6 +50,10 @@ get(boolean, []) ->
 get(boolean, [In | _]) when In =:= $Y orelse In =:= $y ->
     true;
 get(boolean, [In | _]) when In =:= $N orelse In =:= $n ->
+    false;
+get(boolean, true) ->
+    true;
+get(boolean, false) ->
     false;
 get(boolean, _) ->
     no_clue;
