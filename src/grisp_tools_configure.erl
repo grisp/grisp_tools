@@ -46,6 +46,7 @@ settings() -> [
 settings_options() -> [
     {"App name", name, {string, "robot"}, "The name of your GRiSP application"},
     {"Erlang version", otp_version, {string, "25"}, "The·OTP·version·of·the·GRiSP·app"},
+    {"Destination", dest, {string, "/path/to/SD-card"}, "The path to the SD card where you want to deploy the GRISP app"},
     {"Network configuration", network, {boolean, false}, "Network configuration files generation", fun network_options/0}
 ].
 
