@@ -32,11 +32,19 @@ ask({Prompt, Key, {boolean, _}, _, OptsGen}, #{flags := Flags} = State) ->
         _ -> State#{flags := Flags#{Key => false}}
     end.
 
-settings() -> [
-    {"Interactive", interactive, {boolean, true},
-     "Activates the interactive mode"},
-    {"Description", desc, {string, "A GRiSP application"},
-     "Short description of the app"}
+settings() ->
+    {{Year, _, _}, _} = calendar:universal_time(),
+    {AuthorName, AuthorEmail} = default_author_and_email(),
+    [{"Interactive", interactive, {boolean, true},
+      "Activates the interactive mode"},
+     {"Description", desc, {string, "A GRiSP application"},
+      "Short description of the app"},
+     {"Copyright year", copyright_year, {string, Year},
+      "The copyright year"},
+     {"Author name", author_name, {string, AuthorName},
+      "The name of the author"},
+     {"Author email", author_email, {string, AuthorEmail},
+      "The email of the author"}
     ] ++ format_settings_options(settings_options(), []).
 
 settings_options() -> [
@@ -80,3 +88,33 @@ format_settings_options([{_, _, _, _} = Opt | Tail], Acc) ->
 format_settings_options([{Prompt, Key, Type, Descr, FollowUp} | Tail], Acc) ->
     format_settings_options(Tail ++ FollowUp(),
                             [{Prompt, Key, Type, Descr} | Acc]).
+
+default_author_and_email() ->
+    %% See if we can get a git user and email to use as defaults
+    case rebar_utils:sh("git config --global user.name", [return_on_error]) of
+        {ok, Name} ->
+            case rebar_utils:sh("git config --global user.email",
+                                [return_on_error]) of
+                {ok, Email} ->
+                    {rebar_string:trim(Name, both, "\n"),
+                     rebar_string:trim(Email, both, "\n")};
+                {error, _} ->
+                    %% Use neither if one doesn't exist
+                    {"Anonymous", "anonymous@example.org"}
+            end;
+        {error, _} ->
+            %% Ok, try mecurial
+            case rebar_utils:sh("hg showconfig ui.username",
+                                [return_on_error]) of
+                {ok, NameEmail} ->
+                    case re:run(NameEmail, "^(.*) <(.*)>$",
+                                [{capture, [1, 2], list}, unicode]) of
+                        {match, [Name, Email]} ->
+                            {Name, Email};
+                        _ ->
+                            {"Anonymous", "anonymous@example.org"}
+                    end;
+                {error, _} ->
+                    {"Anonymous", "anonymous@example.org"}
+            end
+    end.
