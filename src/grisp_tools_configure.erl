@@ -39,7 +39,8 @@ ask({Prompt, Key, {boolean, _}, _, OptsGen}, #{flags := Flags} = State) ->
 
 -spec settings() -> [setting()].
 settings() -> [
-    {"Interactive", interactive, {boolean, true}, "Activates the interactive mode"}
+    {"Interactive", interactive, {boolean, true}, "Activates the interactive mode"},
+    {"Description", desc, {string, "A GRiSP application"}, "Short description of the app"}
     ] ++ format_settings_options(settings_options(), []).
 
 -spec settings_options() -> [setting()].
@@ -54,7 +55,7 @@ settings_options() -> [
 network_options() -> [
     {"Wifi configuration", wifi, {boolean, false}, "Wifi configuration", fun wifi_options/0},
     {"GRiSP.io configuration", grisp_io, {boolean, false}, "GRiSP.io configuration", fun grisp_io_options/0},
-    {"empd", epmd, {boolean, false}, "Distributed Erlang configuration generation"}
+    {"empd", epmd, {boolean, false}, "Distributed Erlang configuration generation", fun epmd_options/0}
 ].
 
 wifi_options() -> [
@@ -66,6 +67,10 @@ wifi_options() -> [
 -spec grisp_io_options() -> [setting()].
 grisp_io_options() -> [
     {"GRiSP.io token", token, {string, "..."}, "Your private GRiSP.io token"}
+].
+
+epmd_options() -> [
+    {"Erlang cookie", cookie, {string, "grisp"}, "The distributed Erlang cookie"}
 ].
 
 format_settings_options([], Acc) ->
