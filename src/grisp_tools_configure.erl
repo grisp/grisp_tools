@@ -20,7 +20,18 @@ do_ask(State, Options) ->
         Options).
 
 ask(_, #{flags := #{interactive := false}} = State) ->
-    State;
+    State; % Skipping ask in non-interactive mode
+ask({_, Key, _, _}, #{user_opts := UserOpts} = State)
+  when is_map_key(Key, UserOpts) ->
+    user_provided_event(State, Key, UserOpts),
+    State; % Skipping if user provided the option in the command args
+ask({_, Key, _, _, OptsGen}, #{user_opts := UserOpts, flags := Flags} = State)
+  when is_map_key(Key, UserOpts) ->
+    user_provided_event(State, Key, UserOpts),
+    case maps:get(Key, UserOpts) of
+        true -> do_ask(State#{flags := Flags#{Key => true}}, OptsGen());
+        _ -> State
+    end;
 ask({Prompt, Key, {Type, _}, _}, #{flags := Flags} = State) ->
     Default = maps:get(Key, Flags),
     Value = grisp_tools_io:ask(Prompt, Type, Default),
@@ -31,6 +42,12 @@ ask({Prompt, Key, {boolean, _}, _, OptsGen}, #{flags := Flags} = State) ->
         true -> do_ask(State#{flags := Flags#{Key => true}}, OptsGen());
         _ -> State#{flags := Flags#{Key => false}}
     end.
+
+user_provided_event(State, Key, UserOpts) ->
+    Value = maps:get(Key, UserOpts),
+    Prompt = io_lib:format("Value ~p provided for ~p. Skipping question",
+                           [Value, Key]),
+    grisp_tools_util:event(State, {info, Prompt}).
 
 settings() ->
     {{Year, _, _}, _} = calendar:universal_time(),
