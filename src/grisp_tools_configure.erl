@@ -81,9 +81,9 @@ settings() ->
 -spec settings_options() -> [settings_options()].
 settings_options() -> [
     {"App name", {name, undefined}, {string, "robot"},
-     "The name of your GRiSP application"},
-    {"Erlang version", {otp_version, $o}, {string, "25"},
-     "The·OTP·version·of·the·GRiSP·app"},
+     "The name of the OTP application"},
+    {"Erlang version", {otp_release, $o}, {string, "25"},
+     "The OTP version of the GRiSP app"},
     {"Destination", {dest, $d}, {string, "/path/to/SD-card"},
      "The path to the SD card where you want to deploy the GRISP app"},
     {"Network configuration", {network, $n}, {boolean, false},
