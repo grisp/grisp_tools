@@ -4,8 +4,21 @@
 -export([run/1]).
 -export([settings/0]).
 
-%--- API -----------------------------------------------------------------------
+%--- Types ---------------------------------------------------------------------
 
+% {Name, {Long, Short}, {Type, Default}, Description}
+-type settings() :: {string(),
+                     {string(), char()},
+                     {string, string()} | {boolean, boolean()},
+                     string()}.
+
+-type settings_options() :: {string(),
+                             {string(), char()},
+                             {string, string()} | {boolean, boolean()},
+                             string(),
+                             function()} | settings().
+
+%--- API -----------------------------------------------------------------------
 
 run(State) ->
     Options = settings_options(),
@@ -13,30 +26,30 @@ run(State) ->
 
 do_ask(State, Options) ->
     lists:foldl(
-        fun(Setting, Acc) ->
-            ask(Setting, Acc)
+        fun(Setting, AccState) ->
+            ask(AccState, Setting)
         end,
         State,
         Options).
 
-ask(_, #{flags := #{interactive := false}} = State) ->
+ask(#{flags := #{interactive := false}} = State, _) ->
     State; % Skipping ask in non-interactive mode
-ask({_, {Key, _}, _, _}, #{user_opts := UserOpts} = State)
+ask(#{user_opts := UserOpts} = State, {_, {Key, _}, _, _})
   when is_map_key(Key, UserOpts) ->
     user_provided_event(State, Key, UserOpts),
     State; % Skipping if user provided the option in the command args
-ask({_, {Key, _}, _, _, OptsGen}, #{user_opts := UOpts, flags := Flags} = State)
+ask(#{user_opts := UOpts, flags := Flags} = State, {_, {Key, _}, _, _, OptsGen})
   when is_map_key(Key, UOpts) ->
     user_provided_event(State, Key, UOpts),
     case maps:get(Key, UOpts) of
         true -> do_ask(State#{flags := Flags#{Key => true}}, OptsGen());
         _ -> State
     end;
-ask({Prompt, {Key, _}, {Type, _}, _}, #{flags := Flags} = State) ->
+ask(#{flags := Flags} = State, {Prompt, {Key, _}, {Type, _}, _}) ->
     Default = maps:get(Key, Flags),
     Value = grisp_tools_io:ask(Prompt, Type, Default),
     State#{flags => Flags#{Key => Value}};
-ask({Prompt, {Key, _}, {boolean, _}, _, OptsGen}, #{flags := Flags} = State) ->
+ask(#{flags := Flags} = State, {Prompt, {Key, _}, {boolean, _}, _, OptsGen}) ->
     Default = maps:get(Key, Flags),
     case grisp_tools_io:ask(Prompt, boolean, Default) of
         true -> do_ask(State#{flags := Flags#{Key => true}}, OptsGen());
@@ -49,6 +62,7 @@ user_provided_event(State, {Key, _}, UserOpts) ->
                            [Value, Key]),
     grisp_tools_util:event(State, {info, Prompt}).
 
+-spec settings() -> [settings()].
 settings() ->
     {{Year, _, _}, _} = calendar:universal_time(),
     {AuthorName, AuthorEmail} = default_author_and_email(),
@@ -64,6 +78,7 @@ settings() ->
       "The email of the author"}
     ] ++ format_settings_options(settings_options(), []).
 
+-spec settings_options() -> [settings_options()].
 settings_options() -> [
     {"App name", {name, undefined}, {string, "robot"},
      "The name of your GRiSP application"},
@@ -75,6 +90,7 @@ settings_options() -> [
      "Network configuration files generation", fun network_options/0}
 ].
 
+-spec network_options() -> [settings_options()].
 network_options() -> [
     {"Wifi configuration", {wifi, $w}, {boolean, false},
      "Wifi configuration", fun wifi_options/0},
@@ -84,21 +100,25 @@ network_options() -> [
      "Distributed Erlang configuration generation", fun epmd_options/0}
 ].
 
+-spec wifi_options() -> [settings_options()].
 wifi_options() -> [
     {"Wifi SSID", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wifi"},
     {"Wifi PSK", {psk, $p}, {string, "..."}, "The PSK of your Wifi"}
 ].
 
+-spec grisp_io_options() -> [settings_options()].
 grisp_io_options() -> [
     {"GRiSP.io token", {token, $t}, {string, "..."},
      "Your private GRiSP.io token"}
 ].
 
+-spec epmd_options() -> [settings_options()].
 epmd_options() -> [
     {"Erlang cookie", {cookie, $c}, {string, "grisp"},
      "The distributed Erlang cookie"}
 ].
 
+-spec format_settings_options([settings_options()], [settings()]) -> settings().
 format_settings_options([], Acc) ->
     Acc;
 format_settings_options([{_, _, _, _} = Opt | Tail], Acc) ->
