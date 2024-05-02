@@ -47,11 +47,11 @@ ask(#{user_opts := UOpts, flags := Flags} = State, {_, {Key, _}, _, _, OptsGen})
     end;
 ask(#{flags := Flags} = State, {Prompt, {Key, _}, {Type, _}, _}) ->
     Default = maps:get(Key, Flags),
-    Value = grisp_tools_io:ask(Prompt, Type, Default),
+    Value = grisp_tools_io:ask(State, Prompt, Type, Default),
     State#{flags => Flags#{Key => Value}};
 ask(#{flags := Flags} = State, {Prompt, {Key, _}, {boolean, _}, _, OptsGen}) ->
     Default = maps:get(Key, Flags),
-    case grisp_tools_io:ask(Prompt, boolean, Default) of
+    case grisp_tools_io:ask(State, Prompt, boolean, Default) of
         true -> do_ask(State#{flags := Flags#{Key => true}}, OptsGen());
         _ -> State#{flags := Flags#{Key => false}}
     end.
