@@ -84,37 +84,43 @@ settings_options() -> [
      "The name of the OTP application"},
     {"Erlang version", {otp_version, $o}, {string, "25"},
      "The OTP version of the GRiSP app"},
-    {"Destination", {dest, $d}, {string, "/path/to/SD-card"},
+    {"SD Card Path", {dest, $d}, {string, "/path/to/SD-card"},
      "The path to the SD card where you want to deploy the GRISP app"},
-    {"Network configuration", {network, $n}, {boolean, false},
+    {"Use Network ?", {network, $n}, {boolean, false},
      "Network configuration files generation", fun network_options/0}
 ].
 
 -spec network_options() -> [settings_options()].
 network_options() -> [
-    {"Wifi configuration", {wifi, $w}, {boolean, false},
+    {"Use Wifi ?", {wifi, $w}, {boolean, false},
      "Wifi configuration", fun wifi_options/0},
-    {"GRiSP.io configuration", {grisp_io, $g}, {boolean, false},
+    {"Enable GRiSP.io integration ?", {grisp_io, $g}, {boolean, false},
      "GRiSP.io configuration", fun grisp_io_options/0},
-    {"empd", {epmd, $e}, {boolean, false},
+    {"Enable Distributed Erlang ?", {epmd, $e}, {boolean, false},
      "Distributed Erlang configuration generation", fun epmd_options/0}
 ].
 
 -spec wifi_options() -> [settings_options()].
 wifi_options() -> [
-    {"Wifi SSID", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wifi"},
-    {"Wifi PSK", {psk, $p}, {string, "..."}, "The PSK of your Wifi"}
+    {"Wifi Name", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wifi"},
+    {"Wifi Password", {psk, $p}, {string, "..."}, "The PSK of your Wifi"}
 ].
 
 -spec grisp_io_options() -> [settings_options()].
 grisp_io_options() -> [
-    {"GRiSP.io token", {token, $t}, {string, "..."},
-     "Your private GRiSP.io token"}
+    {"Do you need to link your GRiSP-2 board ?", {grisp_io_linking, $l},
+     {boolean, false}, "GRiSP.io device linking", fun grisp_io_link_options/0}
+].
+
+-spec grisp_io_link_options() -> [settings_options()].
+grisp_io_link_options() -> [
+    {"Please enter your personal device linking token", {token, $t},
+     {string, "..."}, "Your private GRiSP.io token"}
 ].
 
 -spec epmd_options() -> [settings_options()].
 epmd_options() -> [
-    {"Erlang cookie", {cookie, $c}, {string, "grisp"},
+    {"Erlang Cookie", {cookie, $c}, {string, "grisp"},
      "The distributed Erlang cookie"}
 ].
 
