@@ -92,7 +92,7 @@ settings_options() -> [
 
 -spec network_options() -> [settings_options()].
 network_options() -> [
-    {"Use Wifi ?", {wifi, $w}, {boolean, false},
+    {"Use Wi-Fi ?", {wifi, $w}, {boolean, false},
      "Wifi configuration", fun wifi_options/0},
     {"Enable GRiSP.io integration ?", {grisp_io, $g}, {boolean, false},
      "GRiSP.io configuration", fun grisp_io_options/0},
@@ -102,8 +102,8 @@ network_options() -> [
 
 -spec wifi_options() -> [settings_options()].
 wifi_options() -> [
-    {"Wifi Name", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wifi"},
-    {"Wifi Password", {psk, $p}, {string, "..."}, "The PSK of your Wifi"}
+    {"Wi-Fi SSID", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wi-Fi"},
+    {"Wi-Fi Password", {psk, $p}, {string, "..."}, "The PSK of your Wi-Fi"}
 ].
 
 -spec grisp_io_options() -> [settings_options()].

@@ -42,6 +42,8 @@ default(false) ->
     "(y/N)";
 default(true) ->
     "(Y/n)";
+default(Default) when is_list(Default) ->
+    [" (", Default , ")"];
 default(Default) ->
     [" (", io_lib:format("~p", [Default]) , ")"].
 
