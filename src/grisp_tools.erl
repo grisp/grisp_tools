@@ -7,6 +7,7 @@
 -export([deploy/1]).
 -export([list_packages/1]).
 -export([report/1]).
+-export([configure/1]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -27,3 +28,5 @@ deploy(State) -> grisp_tools_deploy:run(State).
 list_packages(Opts) -> grisp_tools_package:list(Opts).
 
 report(Opts) -> grisp_tools_report:run(Opts).
+
+configure(Opts) -> grisp_tools_configure:run(Opts).
