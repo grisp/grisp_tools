@@ -88,7 +88,8 @@ trim(Str, Dir, [Chars|_]) -> string:strip(rebar_utils:to_list(Str), Dir, Chars).
 -endif.
 
 say(State, Say) ->
-    io:format(lists:flatten([Say, "~n"])).
+    Event = {say, io_lib:format(lists:flatten([Say, "~n"]), [])},
+    grisp_tools_util:event(State, Event).
 
 -spec say(string(), [term()] | term()) -> ok.
 say(State, Say, Args) when is_list(Args) ->
