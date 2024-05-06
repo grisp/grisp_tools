@@ -27,7 +27,12 @@ run(State) ->
 do_ask(State, Options) ->
     lists:foldl(
         fun(Setting, AccState) ->
-            ask(AccState, Setting)
+            AccState1 = ask(AccState, Setting),
+            {Key, _} = element(2, Setting),
+            case validate_user_choice(AccState1, Key) of
+                {ok, AccState2} -> AccState2;
+                {error, _} = E -> grisp_tools_util:event(AccState1, E)
+            end
         end,
         State,
         Options).
@@ -61,6 +66,30 @@ user_provided_event(State, {Key, _}, UserOpts) ->
     Prompt = io_lib:format("Value ~p provided for ~p. Skipping question",
                            [Value, Key]),
     grisp_tools_util:event(State, {info, Prompt}).
+
+-spec validate_user_choice(State, Setting) -> {ok, State} | {error, Error} when
+      State   :: map(),
+      Setting :: atom(),
+      Error   :: atom().
+validate_user_choice(State, name) ->
+    {ok, Cwd} = file:get_cwd(),
+    #{flags := #{name := ProjectName, interactive := Interactive}} = State,
+    ProjectPath = filename:join(Cwd, ProjectName),
+    case {Interactive, filelib:is_dir(ProjectPath)} of
+        {true, true} ->
+            Prompt = io_lib:format(
+                       "A directory with the name ~p already exists. Do you wish to proceed ?",
+                       [ProjectName]),
+            UserChoice = grisp_tools_io:ask(State, Prompt, boolean, false),
+            case UserChoice of
+                true -> {ok, State#{project_exists => true}};
+                false -> {error, "Project name already taken"}
+            end;
+        {false, true} -> {error, "Project name already taken"};
+        {_, false} -> {ok, State#{project_exists => false}}
+    end;
+validate_user_choice(State, _Param) ->
+    {ok, State}.
 
 -spec settings() -> [settings()].
 settings() ->
