@@ -82,7 +82,8 @@ validate_user_choice(State, name) ->
     case {Interactive, filelib:is_dir(ProjectPath)} of
         {true, true} ->
             Prompt = io_lib:format(
-                       "A directory with the name ~p already exists. Do you wish to proceed ?",
+                       "A directory with the name ~p already exists."
+                       ++ "Do you wish to proceed ?",
                        [ProjectName]),
             UserChoice = grisp_tools_io:ask(State, Prompt, boolean, false),
             case UserChoice of
@@ -103,8 +104,8 @@ settings() ->
       "Activates the interactive mode"},
      {"Description", {desc, undefined}, {string, "A GRiSP application"},
       "Short description of the app"},
-     {"Copyright year", {copyright_year, undefined}, {string, Year},
-      "The copyright year"},
+     {"Copyright year", {copyright_year, undefined},
+      {string, integer_to_list(Year)}, "The copyright year"},
      {"Author name", {author_name, undefined}, {string, AuthorName},
       "The name of the author"},
      {"Author email", {author_email, undefined}, {string, AuthorEmail},
