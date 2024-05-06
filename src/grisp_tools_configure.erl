@@ -9,12 +9,16 @@
 % {Name, {Long, Short}, {Type, Default}, Description}
 -type settings() :: {string(),
                      {string(), char()},
-                     {string, string()} | {boolean, boolean()},
+                     {string, string()}
+                     | {boolean, boolean()}
+                     | {latin1, string()},
                      string()}.
 
 -type settings_options() :: {string(),
                              {string(), char()},
-                             {string, string()} | {boolean, boolean()},
+                             {string, string()}
+                             | {boolean, boolean()}
+                             | {latin1, string()},
                              string(),
                              function()} | settings().
 
@@ -109,7 +113,7 @@ settings() ->
 
 -spec settings_options() -> [settings_options()].
 settings_options() -> [
-    {"App name", {name, undefined}, {string, "robot"},
+    {"App name", {name, undefined}, {latin1, "robot"},
      "The name of the OTP application"},
     {"Erlang version", {otp_version, $o}, {string, "25"},
      "The OTP version of the GRiSP app"},

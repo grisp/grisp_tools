@@ -70,12 +70,21 @@ get(integer, String) ->
         Integer ->
             Integer
     end;
+get(latin1, []) ->
+    no_data;
+get(latin1, Data) ->
+    case io_lib:latin1_char_list(Data) of
+        true ->
+            Data;
+        false ->
+            no_clue
+    end;
 get(string, []) ->
     no_data;
 get(string, String) ->
     case is_list(String) of
         true ->
-            String;
+            unicode:characters_to_binary(String);
         false ->
             no_clue
     end.
