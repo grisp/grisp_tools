@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.6.0] - 2024-05-07
+### Added
+- Implementation of the `configure` command: [#21](https://github.com/grisp/grisp_tools/pull/21)
+
+### Fixed
+- CI update to only test OTP 24 and 25: [#22](https://github.com/grisp/grisp_tools/pull/22)
+
 ## [2.5.0] - 2023-04-21
 
 ### Added
@@ -134,7 +141,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.5.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.6.0...HEAD
+[2.6.0]: https://github.com/grisp/grisp_tools/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/grisp/grisp_tools/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/grisp/grisp_tools/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/grisp/grisp_tools/compare/2.2.2...2.3.0
