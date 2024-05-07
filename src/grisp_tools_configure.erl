@@ -9,12 +9,16 @@
 % {Name, {Long, Short}, {Type, Default}, Description}
 -type settings() :: {string(),
                      {string(), char()},
-                     {string, string()} | {boolean, boolean()},
+                     {string, string()}
+                     | {boolean, boolean()}
+                     | {latin1, string()},
                      string()}.
 
 -type settings_options() :: {string(),
                              {string(), char()},
-                             {string, string()} | {boolean, boolean()},
+                             {string, string()}
+                             | {boolean, boolean()}
+                             | {latin1, string()},
                              string(),
                              function()} | settings().
 
@@ -27,7 +31,12 @@ run(State) ->
 do_ask(State, Options) ->
     lists:foldl(
         fun(Setting, AccState) ->
-            ask(AccState, Setting)
+            AccState1 = ask(AccState, Setting),
+            {Key, _} = element(2, Setting),
+            case validate_user_choice(AccState1, Key) of
+                {ok, AccState2} -> AccState2;
+                {error, _} = E -> grisp_tools_util:event(AccState1, E)
+            end
         end,
         State,
         Options).
@@ -62,6 +71,31 @@ user_provided_event(State, {Key, _}, UserOpts) ->
                            [Value, Key]),
     grisp_tools_util:event(State, {info, Prompt}).
 
+-spec validate_user_choice(State, Setting) -> {ok, State} | {error, Error} when
+      State   :: map(),
+      Setting :: atom(),
+      Error   :: atom().
+validate_user_choice(State, name) ->
+    {ok, Cwd} = file:get_cwd(),
+    #{flags := #{name := ProjectName, interactive := Interactive}} = State,
+    ProjectPath = filename:join(Cwd, ProjectName),
+    case {Interactive, filelib:is_dir(ProjectPath)} of
+        {true, true} ->
+            Prompt = io_lib:format(
+                       "A directory with the name ~p already exists. "
+                       ++ "Do you wish to proceed? ",
+                       [ProjectName]),
+            UserChoice = grisp_tools_io:ask(State, Prompt, boolean, false),
+            case UserChoice of
+                true -> {ok, State#{project_exists => true}};
+                false -> {error, "Project name already taken"}
+            end;
+        {false, true} -> {error, "Project name already taken"};
+        {_, false} -> {ok, State#{project_exists => false}}
+    end;
+validate_user_choice(State, _Param) ->
+    {ok, State}.
+
 -spec settings() -> [settings()].
 settings() ->
     {{Year, _, _}, _} = calendar:universal_time(),
@@ -70,8 +104,8 @@ settings() ->
       "Activates the interactive mode"},
      {"Description", {desc, undefined}, {string, "A GRiSP application"},
       "Short description of the app"},
-     {"Copyright year", {copyright_year, undefined}, {string, Year},
-      "The copyright year"},
+     {"Copyright year", {copyright_year, undefined},
+      {string, integer_to_list(Year)}, "The copyright year"},
      {"Author name", {author_name, undefined}, {string, AuthorName},
       "The name of the author"},
      {"Author email", {author_email, undefined}, {string, AuthorEmail},
@@ -80,7 +114,7 @@ settings() ->
 
 -spec settings_options() -> [settings_options()].
 settings_options() -> [
-    {"App name", {name, undefined}, {string, "robot"},
+    {"App name", {name, undefined}, {latin1, "robot"},
      "The name of the OTP application"},
     {"Erlang version", {otp_version, $o}, {string, "25"},
      "The OTP version of the GRiSP app"},
@@ -92,7 +126,7 @@ settings_options() -> [
 
 -spec network_options() -> [settings_options()].
 network_options() -> [
-    {"Use Wifi ?", {wifi, $w}, {boolean, false},
+    {"Use Wi-Fi ?", {wifi, $w}, {boolean, false},
      "Wifi configuration", fun wifi_options/0},
     {"Enable GRiSP.io integration ?", {grisp_io, $g}, {boolean, false},
      "GRiSP.io configuration", fun grisp_io_options/0},
@@ -102,8 +136,8 @@ network_options() -> [
 
 -spec wifi_options() -> [settings_options()].
 wifi_options() -> [
-    {"Wifi Name", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wifi"},
-    {"Wifi Password", {psk, $p}, {string, "..."}, "The PSK of your Wifi"}
+    {"Wi-Fi SSID", {ssid, $p}, {string, "My Wifi"}, "The SSID of your Wi-Fi"},
+    {"Wi-Fi Password", {psk, $p}, {string, "..."}, "The PSK of your Wi-Fi"}
 ].
 
 -spec grisp_io_options() -> [settings_options()].
