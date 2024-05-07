@@ -82,8 +82,8 @@ validate_user_choice(State, name) ->
     case {Interactive, filelib:is_dir(ProjectPath)} of
         {true, true} ->
             Prompt = io_lib:format(
-                       "A directory with the name ~p already exists."
-                       ++ "Do you wish to proceed ?",
+                       "A directory with the name ~p already exists. "
+                       ++ "Do you wish to proceed? ",
                        [ProjectName]),
             UserChoice = grisp_tools_io:ask(State, Prompt, boolean, false),
             case UserChoice of
