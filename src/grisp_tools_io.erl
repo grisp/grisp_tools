@@ -79,6 +79,16 @@ get(latin1, Data) ->
         false ->
             no_clue
     end;
+get(trim_string, []) ->
+    no_data;
+get(trim_string, String) ->
+    case is_list(String) of
+        true ->
+            Trimmed = string:trim(String),
+            unicode:characters_to_binary(Trimmed);
+        false ->
+            no_clue
+    end;
 get(string, []) ->
     no_data;
 get(string, String) ->
@@ -98,11 +108,6 @@ trim(Str) -> string:strip(rebar_utils:to_list(Str)).
 trim(Str, Dir, [Chars|_]) -> string:strip(rebar_utils:to_list(Str), Dir, Chars).
 -endif.
 
-say(State, Say) ->
-    Event = {say, io_lib:format(lists:flatten([Say, "~n"]), [])},
-    grisp_tools_util:event(State, Event).
-
--spec say(string(), [term()] | term()) -> ok.
 say(State, Say, Args) when is_list(Args) ->
     Event = {say, io_lib:format(lists:flatten([Say, "~n"]), Args)},
     grisp_tools_util:event(State, Event);

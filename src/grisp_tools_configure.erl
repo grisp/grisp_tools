@@ -149,7 +149,7 @@ grisp_io_options() -> [
 -spec grisp_io_link_options() -> [settings_options()].
 grisp_io_link_options() -> [
     {"Please enter your personal device linking token", {token, $t},
-     {string, "..."}, "Your private GRiSP.io token"}
+     {trim_string, "..."}, "Your private GRiSP.io token"}
 ].
 
 -spec epmd_options() -> [settings_options()].
