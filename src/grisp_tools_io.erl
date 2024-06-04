@@ -64,7 +64,7 @@ default(Default) ->
 hint("") ->
     "";
 hint(Hint) ->
-    [color(242, Hint), "\n"].
+    [color(242, "# " ++ Hint), "\n"].
 
 get(boolean, []) ->
     no_data;

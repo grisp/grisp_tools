@@ -179,7 +179,7 @@ grisp_io_link_options() -> [
     #set_opts{prompt = "Please enter your personal device linking token",
              long = token, short = $t, type = trim_string,
              description = "Your private GRiSP.io token",
-             hint = "# Write the token without any <, > or "}].
+             hint = "Write the token without any <, > or "}].
 
 -spec epmd_options() -> [set_opts()].
 epmd_options() -> [
