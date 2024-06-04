@@ -19,17 +19,19 @@ ask(State, Prompt, Type, Default, Hint)  ->
 
 %--- Internal ------------------------------------------------------------------
 
-ask_convert(State, Prompt, TransFun, Type,  Default, Hint) ->
+ask_convert(State0, Prompt, TransFun, Type,  Default, Hint) ->
     DefaultPrompt = erlang:iolist_to_binary(
         ["\n", hint(Hint), Prompt, default(Default), "> "]
     ),
     NewPrompt = erlang:binary_to_list(DefaultPrompt),
-    Data = trim(trim(io:get_line(NewPrompt)), both, [$\n]),
+    Event = {ask, NewPrompt},
+    {RawUserInput, State1} = grisp_tools_util:event_with_result(State0, Event),
+    Data = trim(trim(RawUserInput), both, [$\n]),
     case TransFun(Type, Data)  of
         no_data ->
-            maybe_continue(State, Prompt, TransFun, Type, Default, Hint);
+            maybe_continue(State1, Prompt, TransFun, Type, Default, Hint);
         no_clue ->
-            continue(State, Prompt, TransFun, Type, Default, Hint);
+            continue(State1, Prompt, TransFun, Type, Default, Hint);
         Ret ->
             Ret
     end.
