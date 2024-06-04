@@ -2,50 +2,67 @@
 
 -export([
          ask/3,
-         ask/4
+         ask/4,
+         ask/5
         ]).
 
+%--- API -----------------------------------------------------------------------
+
 ask(State, Prompt, Type) ->
-    ask_convert(State, Prompt, fun get/2, Type, none).
+    ask_convert(State, Prompt, fun get/2, Type, none, "").
 
-ask(State, Prompt, Type, Default)  ->
-    ask_convert(State, Prompt, fun get/2, Type, Default).
+ask(State, Prompt, Type, Default) ->
+    ask_convert(State, Prompt, fun get/2, Type, Default, "").
 
-ask_convert(State, Prompt, TransFun, Type,  Default) ->
-    DefaultPrompt = erlang:iolist_to_binary([Prompt, default(Default), "> "]),
+ask(State, Prompt, Type, Default, Hint)  ->
+    ask_convert(State, Prompt, fun get/2, Type, Default, Hint).
+
+%--- Internal ------------------------------------------------------------------
+
+ask_convert(State, Prompt, TransFun, Type,  Default, Hint) ->
+    DefaultPrompt = erlang:iolist_to_binary(
+        ["\n", hint(Hint), Prompt, default(Default), "> "]
+    ),
     NewPrompt = erlang:binary_to_list(DefaultPrompt),
     Data = trim(trim(io:get_line(NewPrompt)), both, [$\n]),
     case TransFun(Type, Data)  of
         no_data ->
-            maybe_continue(State, Prompt, TransFun, Type, Default);
+            maybe_continue(State, Prompt, TransFun, Type, Default, Hint);
         no_clue ->
-            continue(State, Prompt, TransFun, Type, Default);
+            continue(State, Prompt, TransFun, Type, Default, Hint);
         Ret ->
             Ret
     end.
 
-maybe_continue(State, Prompt, TransFun, Type, Default) ->
+maybe_continue(State, Prompt, TransFun, Type, Default, Hint) ->
     case Default of
         none ->
-            continue(State, Prompt, TransFun, Type, Default);
-        Default ->
+            continue(State, Prompt, TransFun, Type, Default, Hint);
+        _ ->
             TransFun(Type, Default)
     end.
 
-continue(State, Prompt, TransFun, Type, Default) ->
-    say(State, "Wrong input type. A ~p is expected.~n", [Type]),
-    ask_convert(State, Prompt, TransFun, Type, Default).
+continue(State, Prompt, TransFun, Type, Default, Hint) ->
+    Text = io_lib:format("Wrong input type. A ~p is expected", [Type]),
+    say(State, color(208, Text)),
+    ask_convert(State, Prompt, TransFun, Type, Default, Hint).
 
 default(none) ->
     [];
 default(false) ->
-    "(y/N)";
+    color(51, " (y/N)");
 default(true) ->
-    "(Y/n)";
+    color(51, " (Y/n)");
 default(Default) when is_list(Default) ->
-    [" (", Default , ")"];
+    DefaultText = io_lib:format(" (default: ~p)", [Default]),
+    color(51, DefaultText);
 default(Default) ->
-    [" (", io_lib:format("~p", [Default]) , ")"].
+    color(51, io_lib:format("(~p)", [Default])).
+
+hint("") ->
+    "";
+hint(Hint) ->
+    [color(242, Hint), "\n"].
 
 get(boolean, []) ->
     no_data;
@@ -108,9 +125,16 @@ trim(Str) -> string:strip(rebar_utils:to_list(Str)).
 trim(Str, Dir, [Chars|_]) -> string:strip(rebar_utils:to_list(Str), Dir, Chars).
 -endif.
 
-say(State, Say, Args) when is_list(Args) ->
-    Event = {say, io_lib:format(lists:flatten([Say, "~n"]), Args)},
-    grisp_tools_util:event(State, Event);
-say(State, Say, Args) ->
-    Event = {say, io_lib:format(lists:flatten([Say, "~n"]), [Args])},
+say(State, Say) ->
+    Event = {say, Say},
     grisp_tools_util:event(State, Event).
+
+
+% @doc Add foreground coloring to the given text using ANSI ecape code
+% See: https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+% @end
+-spec color(Code, Text) -> string() when
+      Code :: 0..255,
+      Text :: string().
+color(Code, Text) ->
+    io_lib:format("\033[38;5;~pm~s\033[m", [Code, Text]).
