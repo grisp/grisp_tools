@@ -56,10 +56,10 @@ default(false) ->
 default(true) ->
     color(51, " (Y/n)");
 default(Default) when is_list(Default) ->
-    DefaultText = io_lib:format(" (default: ~p)", [Default]),
+    DefaultText = io_lib:format(" (default: ~s)", [Default]),
     color(51, DefaultText);
 default(Default) ->
-    color(51, io_lib:format("(~p)", [Default])).
+    color(51, io_lib:format("(~s)", [Default])).
 
 hint("") ->
     "";
@@ -103,7 +103,8 @@ get(trim_string, []) ->
 get(trim_string, String) ->
     case is_list(String) of
         true ->
-            Trimmed = string:trim(String),
+            Whitespace = unicode_util:whitespace(),
+            Trimmed = string:trim(String, both, Whitespace ++ [$"]),
             unicode:characters_to_binary(Trimmed);
         false ->
             no_clue
