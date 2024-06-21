@@ -235,7 +235,7 @@ post(#{build := #{hash := #{index := Index}}} = S0) ->
                 _ -> error({missing_toolchain_revision, RevSource})
             end;
         {docker, _Image} ->
-            Cmd = "cat /grisp2-rtems-toolchain/rtems/5/GRISP_TOOLCHAIN_REVISION",
+            Cmd = "cat /grisp2-rtems-toolchain/rtems/6/GRISP_TOOLCHAIN_REVISION",
             DockerCmd = dockerize_command(Cmd, S0),
             {{ok, RevisionString}, S1} = shell(S0, DockerCmd, []),
             ok = file:write_file(RevDestination, RevisionString),

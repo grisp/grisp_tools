@@ -130,10 +130,10 @@ toolchain(#{paths := #{toolchain := {directory, ToolchainRoot}}} = S0) ->
         ["GRISP_TOOLCHAIN_REVISION"],
         ["GRISP_TOOLCHAIN_PLATFORM"],
         ["grisp_buildinfo.hrl"],
-        ["arm-rtems5"],
-        ["arm-rtems5", "atsamv"],
-        ["arm-rtems5", "imx7"],
-        ["bin","arm-rtems5-gcc"]
+        ["arm-rtems6"],
+        ["arm-rtems6", "atsamv"],
+        ["arm-rtems6", "imx7"],
+        ["bin","arm-rtems6-gcc"]
     ],
     [ check_toolchain_file([ToolchainRoot|File]) || File <- Files],
     S0.
