@@ -3,6 +3,7 @@
 % API
 -export([weave/2]).
 -export([event/2]).
+-export([event_with_result/2]).
 -export([shell/2]).
 -export([shell/3]).
 -export([exec/3]).
@@ -71,6 +72,11 @@ event(#{event_stack := Stack} = State0, Events) when is_list(Events) ->
 event(State0, Event) -> % TODO: Remove this clause
     {_Result, State1} = exec(event, State0, [Event]),
     State1.
+
+event_with_result(#{event_stack := Stack} = State0, Events) when is_list(Events) ->
+    exec(event, State0, [Stack ++ Events]);
+event_with_result(State0, Event) ->
+    exec(event, State0, [Event]).
 
 shell(State, Command) -> shell(State, Command, []).
 
