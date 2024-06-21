@@ -8,6 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.6.1] - 2024-06-21
+### Added
+- Some prompts of the `configure` command have been improved: [#24](https://github.com/grisp/grisp_tools/pull/24)
+- For some choices, the prompts are explained by hints for `configure`: [#24](https://github.com/grisp/grisp_tools/pull/24)
+- Coloring is used to display the prompts using ANSI escape codes for `configure`: [#24](https://github.com/grisp/grisp_tools/pull/24)
+
+### Fixed
+- The token provided by the user is trimmed to avoid spaces and uncessary quotes: [#24](https://github.com/grisp/grisp_tools/pull/24)
+- Unused function warning for function `say/2` in `grisp_tools_io.erl`: [#24](https://github.com/grisp/grisp_tools/pull/24)
+
 ## [2.6.0] - 2024-05-07
 ### Added
 - Implementation of the `configure` command: [#21](https://github.com/grisp/grisp_tools/pull/21)
@@ -141,7 +151,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.6.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.6.1...HEAD
+[2.6.1]: https://github.com/grisp/grisp_tools/compare/2.6.0...2.6.1
 [2.6.0]: https://github.com/grisp/grisp_tools/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/grisp/grisp_tools/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/grisp/grisp_tools/compare/2.3.0...2.4.0
