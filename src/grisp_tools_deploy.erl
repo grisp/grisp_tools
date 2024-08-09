@@ -1,5 +1,7 @@
 -module(grisp_tools_deploy).
 
+-include_lib("kernel/include/file.hrl").
+
 % API
 -export([run/1]).
 
@@ -23,7 +25,7 @@ run(State) ->
             fun grisp_tools_step:collect/1,
             fun package/1,
             fun release/1,
-            fun copy/1
+            fun distribute/1
         ]}
     ]).
 
@@ -44,13 +46,17 @@ release(#{paths := #{install := InstallPath}} = State0) ->
     Release = maps:get(release, State0, #{}),
     release(State0, maps:merge(Release, #{erts => InstallPath})).
 
-copy(State0) ->
-    grisp_tools_util:pipe(State0, [
-        fun(S) -> run_script(pre_script, S) end,
-        fun copy_release/1,
-        fun copy_files/1,
-        fun(S) -> run_script(post_script, S) end
-    ]).
+distribute(State0 = #{distribute := Dists}) ->
+    grisp_tools_util:iterate(State0, Dists, dist, fun(S0) ->
+        grisp_tools_util:pipe(S0, [
+            fun(S) -> run_script([dist, scripts], pre_script, S) end,
+            fun dist_prepare/1,
+            fun dist_release/1,
+            fun dist_files/1,
+            fun dist_finish/1,
+            fun(S) -> run_script([dist, scripts], post_script, S) end
+        ], [fun dist_abort/1])
+    end).
 
 %--- Internal ------------------------------------------------------------------
 
@@ -105,7 +111,44 @@ extract_really(File, InstallPath, State0) ->
         {error, Reason} -> event(State1, [{error, Reason}])
     end.
 
-copy_files(#{copy := #{destination := Dest, force := Force}, release := Release} = State0) ->
+dist_prepare(State0 = #{dist := #{type := copy, destination := Dest}}) ->
+    case file:read_file_info(Dest) of
+        {ok, #file_info{type = directory, access = Access}}
+          when Access =:= write; Access =:= read_write ->
+            State0;
+        {ok, #file_info{type = directory}} ->
+            event(State0, [{error, dir_not_writable, Dest}]);
+        {ok, #file_info{}} ->
+            event(State0, [{error, dir_access, Dest}]);
+        {error, enoent} ->
+            event(State0, [{error, dir_missing, Dest}])
+    end;
+dist_prepare(State0 = #{dist := #{type := archive, destination := Dest,
+                                  force := Force, compressed := Compressed}}) ->
+    case {Force, file:read_file_info(Dest)} of
+        {_, {error, enoent}} -> ok;
+        {false, {ok, #file_info{}}} ->
+            event(State0, [{error, file_exists, Dest}]);
+        {true, {ok, #file_info{type = regular}}} ->
+            case file:delete(Dest) of
+                ok -> ok;
+                {error, _Reason} ->
+                    event(State0, [{error, file_access, Dest}])
+            end;
+        {true, {ok, #file_info{}}} ->
+            event(State0, [{error, not_a_file, Dest}])
+    end,
+    TarOpts = case Compressed of
+        true -> [write, compressed];
+        false -> [write]
+    end,
+    grisp_tools_util:ensure_dir(Dest),
+    case erl_tar:open(Dest, TarOpts) of
+        {ok, TarDesc} -> State0#{tar_desc => TarDesc};
+        {error, Reason} -> event(State0, [archive, {error, Reason}])
+    end.
+
+dist_files(#{dist := #{destination := Dest}, release := Release} = State0) ->
     #{paths := #{install := InstallPath}} = State0,
     State1 = event(State0, [files, {init, Dest}]),
     ERTSPath = filelib:wildcard(binary_to_list(filename:join(InstallPath, "erts-*"))),
@@ -118,13 +161,22 @@ copy_files(#{copy := #{destination := Dest, force := Force}, release := Release}
     },
     maps:fold(
         fun(_Name, File, S) ->
-            write_file(Dest, File, Force, Context, S)
+            write_file(S, File, Context)
         end,
         State1,
         mapz:deep_get([deploy, overlay, files], State0)
     ).
 
-write_file(Dest, #{target := Target} = File, Force, Context, State0) ->
+write_file(#{dist := #{type := archive}, tar_desc := TarDesc} = State0,
+           #{target := Target} = File, Context) ->
+    Content = iolist_to_binary(grisp_tools_util:read_file(File, Context)),
+    State1 = event(State0, [files, {copy, File}]),
+    case erl_tar:add(TarDesc, Content, binary_to_list(Target), []) of
+        {error, Reason} -> error(Reason);
+        ok -> State1
+    end;
+write_file(#{dist := #{type := copy, destination := Dest, force := Force}} = State0,
+           #{target := Target} = File, Context) ->
     Path = filename:join(Dest, Target),
     State1 = event(State0, [files, {copy, File}]),
     force_execute(Path, Force, fun(F) ->
@@ -135,31 +187,52 @@ write_file(Dest, #{target := Target} = File, Force, Context, State0) ->
 force_execute(File, Force, Fun, State0) ->
     State1 = case {filelib:is_file(File), Force} of
         {true, false} ->
-            event(State0, [files, {error, {exists, File}}]);
+            event(State0, [files, {error, file_exists, File}]);
         _ ->
             State0
     end,
     Fun(File),
     State1.
 
-copy_release(#{release := Release, copy := Copy} = State0) ->
+dist_release(#{tar_desc := TarDesc, release := Release,
+               dist := #{type := archive}} = State0) ->
     #{name := RelName, dir := Source} = Release,
-    #{destination := Dest, force := Force} = Copy,
+    Target = atom_to_list(RelName),
+    State1 = event(State0, [release, {archive, Source, Target}]),
+    case erl_tar:add(TarDesc, Source, Target, [dereference]) of
+        {error, Reason} -> error(Reason);
+        ok -> State1
+    end;
+dist_release(#{release := Release, dist := #{type := copy} = Dist} = State0) ->
+    #{name := RelName, dir := Source} = Release,
+    #{destination := Dest, force := Force} = Dist,
     Target = filename:join(Dest, RelName),
     State1 = event(State0, [release, {copy, Source, Target}]),
     CopyExe = case Force of
         true  -> "cp -Rf";
         false -> "cp -R"
     end,
-    State2 = case filelib:is_dir(Dest) of
-        false -> event(State1, [release, {error, target_dir_missing, Dest}]);
-        true -> State1
-    end,
     Command = string:join([CopyExe, qoute(Source ++ "/"), qoute(Target)], " "),
-    {Output, State3} = shell(State2, Command),
-    event(State3, [release, {copy, {result, Output}}]).
+    {Output, State2} = shell(State1, Command),
+    event(State2, [release, {copy, {result, Output}}]).
 
 qoute(String) -> "\"" ++ String ++ "\"".
+
+dist_finish(State0 = #{tar_desc := TarDesc,
+                       dist := #{type := archive, destination := Dest}}) ->
+    erl_tar:close(TarDesc),
+    event(State0, [archive, {closed, Dest}]),
+    maps:remove(tar_desc, State0);
+dist_finish(State0 = #{dist := #{type := copy}}) ->
+    State0.
+
+dist_abort(State0 = #{tar_desc := TarDesc,
+                      dist := #{type := archive, destination := Dest}}) ->
+    erl_tar:close(TarDesc),
+    file:delete(Dest),
+    maps:remove(tar_desc, State0);
+dist_abort(State0) ->
+    State0.
 
 % Helpers
 
@@ -225,8 +298,8 @@ http_get(URI, Headers, Options, InetsPid) ->
     {ok, ID} = httpc:request(get, Request, HTTPOptions, Options, InetsPid),
     ID.
 
-run_script(Name, State0) ->
-    case mapz:deep_get([scripts, Name], State0, undefined) of
+run_script(StatePath, Name, State0) ->
+    case mapz:deep_get(StatePath ++ [Name], State0, undefined) of
         undefined -> State0;
         Script ->
             State1 = event(State0, [Name, {run, Script}]),

@@ -8,6 +8,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Exposed previously private function `grisp_tools_util:read_file/2`: [#25](https://github.com/grisp/grisp_tools/pull/25)
+- Utility functions `grisp_tools_util:make_relative/[1,2]` to convert a path to
+  relative: [#25](https://github.com/grisp/grisp_tools/pull/25)
+- Add iteration function to iterate over a list that behave nicely with `pipe`
+  and `weave` functions.
+- Add optional cleanup actions to `weave` and `pipe` functions that will be
+  called if any exception is raised while performing the actions, and that will
+  receive the last know state before the exception was raised. The cleanup
+  actions will **NOT** be called if the actions do not raise any exception.
+  [#25](https://github.com/grisp/grisp_tools/pull/25)
+
+### Changed
+
+- The deploy command is now supporting multiple distribution specifications.
+  as such, the `copy` argument is changed to `distribute`, and is now a list
+  of tuple `{Tag, DistArgs}`. The distribution now supports bundling in
+  tarball archives. The `scripts` argument is moved inside the distribution
+  argument, as you can have different scripts for the different distributions.
+  [#25](https://github.com/grisp/grisp_tools/pull/25)
+
 ## [2.6.1] - 2024-06-21
 ### Added
 - Some prompts of the `configure` command have been improved: [#24](https://github.com/grisp/grisp_tools/pull/24)
