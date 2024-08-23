@@ -2,6 +2,7 @@
 
 % API
 -export([weave/2]).
+-export([weave/3]).
 -export([event/2]).
 -export([event_with_result/2]).
 -export([shell/2]).
@@ -26,10 +27,15 @@
 -export([merge_build_config/2]).
 -export([source_hash/2]).
 -export([write_file/3]).
+-export([read_file/2]).
 -export([with_file/3]).
 -export([pipe/2]).
+-export([pipe/3]).
+-export([iterate/4]).
 -export([find_files/2]).
 -export([otp_package_cache/1]).
+-export([make_relative/1]).
+-export([make_relative/2]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -43,7 +49,7 @@ weave(S0, [{Step, Inner}|Steps]) ->
     weave(with_event(S0, [name(Step)], fun(S1) ->
         S2 = case Step of
             Step when is_atom(Step) -> S1;
-            Step when is_function(Step) -> Step(S1)
+            Step when is_function(Step) -> wrap_call(S1, Step)
         end,
         weave(S2, Inner)
     end), Steps);
@@ -55,11 +61,14 @@ weave(_S0, [abort|_Steps]) ->
 weave(S0, [Step|Steps]) ->
     weave(with_event(S0, [name(Step)], Step), Steps).
 
+weave(State, Actions, CleanupActions) ->
+    cleanup_call(State, fun(S) -> weave(S, Actions) end, CleanupActions).
+
 with_event(#{event_stack := Current} = State0, New, Fun) ->
     Stack = Current ++ New,
     grisp_tools_util:pipe(State0, [
         fun(S) -> event(S#{event_stack => Stack}, []) end,
-        fun(S) -> Fun(S#{event_stack => Stack}) end,
+        fun(S) -> wrap_call(S#{event_stack => Stack}, Fun) end,
         % fun(S) -> event(S, ['_end']) end,
         fun(S) -> S#{event_stack => Current} end
     ]);
@@ -249,7 +258,18 @@ with_file(File, Opts, Fun) ->
     end.
 
 pipe(State, Actions) ->
-    lists:foldl(fun(Action, S) -> Action(S) end, State, Actions).
+    lists:foldl(fun(Action, S) -> wrap_call(S, Action) end, State, Actions).
+
+pipe(State, Actions, CleanupActions) ->
+    cleanup_call(State, fun(S) -> pipe(S, Actions) end, CleanupActions).
+
+iterate(State, Iterations, StateKey, Fun) ->
+    lists:foldl(fun
+        ({IterName, IterState}, S) when is_atom(IterName), is_map(IterState) ->
+            with_event(S#{StateKey => IterState}, [IterName], Fun);
+        (IterState, S) ->
+            wrap_call(S#{StateKey => IterState}, Fun)
+    end, State, Iterations).
 
 otp_package_cache(Platform) ->
     filename:join([cache(), "packages", Platform, "otp"]).
@@ -260,7 +280,58 @@ find_files(Dir, Regex) ->
 find_files(Dir, Regex, Recursive) ->
     filelib:fold_files(Dir, Regex, Recursive, fun(F, Acc) -> [F | Acc] end, []).
 
+make_relative(Path) ->
+    case file:get_cwd() of
+        {error, Reason} -> error(Reason);
+        {ok, Dir} -> make_relative(Dir, Path)
+    end.
+
+make_relative(BasePath, Path) ->
+    AbsBase = filename:absname(iolist_to_binary(BasePath)),
+    AbsPath = filename:absname(iolist_to_binary(Path)),
+    BaseParts = filename:split(AbsBase),
+    PathParts = filename:split(AbsPath),
+    {_Common, BaseRem, PathRem} = common_prefix(BaseParts, PathParts),
+    RelParts = lists:duplicate(length(BaseRem), "..") ++ PathRem,
+    filename:join(RelParts).
+
 %--- Internal ------------------------------------------------------------------
+
+common_prefix([H | T1], [H | T2]) ->
+    {Common, R1, R2} = common_prefix(T1, T2),
+    {[H | Common], R1, R2};
+common_prefix(L1, L2) ->
+    {[], L1, L2}.
+
+wrap_call(State = #{'_wrap_exceptions' := true}, Fun) ->
+    try Fun(State)
+    catch
+        throw:{'_wrapped_exception', _, _, _, _}=Reason ->
+            throw(Reason);
+        Class:Reason:Stack ->
+            throw({'_wrapped_exception', State, Class, Reason, Stack})
+    end;
+wrap_call(State, Fun) ->
+    Fun(State).
+
+safe_pipe(State, Actions) ->
+    lists:foldl(fun(Action, S) ->
+        try Action(S) catch _:_ -> S end
+    end, State, Actions).
+
+cleanup_call(State = #{'_wrap_exceptions' := true}, Fun, CleanupActions) ->
+    try Fun(State)
+    catch throw:{'_wrapped_exception', LastState, Class, Reason, Stack} ->
+        LastState2 = safe_pipe(LastState, CleanupActions),
+        throw({'_wrapped_exception', LastState2, Class, Reason, Stack})
+    end;
+cleanup_call(State, Fun, CleanupActions) ->
+    try Fun(State#{'_wrap_exceptions' => true}) of
+        NewState -> maps:remove('_wrap_exceptions', NewState)
+    catch throw:{'_wrapped_exception', LastState, Class, Reason, Stack} ->
+        safe_pipe(LastState, CleanupActions),
+        erlang:raise(Class, Reason, Stack)
+    end.
 
 sub_paths(Dir, Platform) ->
     #{
