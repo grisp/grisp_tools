@@ -22,6 +22,7 @@ and this project adheres to
   receive the last know state before the exception was raised. The cleanup
   actions will **NOT** be called if the actions do not raise any exception.
   [#25](https://github.com/grisp/grisp_tools/pull/25)
+- Add a firmware command to generate GRiSP 2 binary firmwares: [#26](https://github.com/grisp/grisp_tools/pull/26)
 
 ### Changed
 
