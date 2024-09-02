@@ -36,6 +36,8 @@
 -export([otp_package_cache/1]).
 -export([make_relative/1]).
 -export([make_relative/2]).
+-export([maybe_relative/2]).
+-export([maybe_relative/3]).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -287,13 +289,26 @@ make_relative(Path) ->
     end.
 
 make_relative(BasePath, Path) ->
+    maybe_relative(BasePath, Path, infinity).
+
+maybe_relative(Path, MaxDoubleDots) ->
+    case file:get_cwd() of
+        {error, Reason} -> error(Reason);
+        {ok, Dir} -> maybe_relative(Dir, Path, MaxDoubleDots)
+    end.
+
+maybe_relative(BasePath, Path, MaxDoubleDots) ->
     AbsBase = filename:absname(iolist_to_binary(BasePath)),
     AbsPath = filename:absname(iolist_to_binary(Path)),
     BaseParts = filename:split(AbsBase),
     PathParts = filename:split(AbsPath),
     {_Common, BaseRem, PathRem} = common_prefix(BaseParts, PathParts),
-    RelParts = lists:duplicate(length(BaseRem), "..") ++ PathRem,
-    filename:join(RelParts).
+    case MaxDoubleDots =:= infinity orelse length(BaseRem) =< MaxDoubleDots of
+        false -> AbsPath;
+        true ->
+            RelParts = lists:duplicate(length(BaseRem), "..") ++ PathRem,
+            filename:join(RelParts)
+    end.
 
 %--- Internal ------------------------------------------------------------------
 

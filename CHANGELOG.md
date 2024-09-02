@@ -13,6 +13,8 @@ and this project adheres to
 - Exposed previously private function `grisp_tools_util:read_file/2`: [#25](https://github.com/grisp/grisp_tools/pull/25)
 - Utility functions `grisp_tools_util:make_relative/[1,2]` to convert a path to
   relative: [#25](https://github.com/grisp/grisp_tools/pull/25)
+- Utility functions `grisp_tools_util:maybe_relative/[2,3]` to convert a path to
+  relative with a maximum number of double-dots: [#26](https://github.com/grisp/grisp_tools/pull/26)
 - Add iteration function to iterate over a list that behave nicely with `pipe`
   and `weave` functions.
 - Add optional cleanup actions to `weave` and `pipe` functions that will be
@@ -20,6 +22,7 @@ and this project adheres to
   receive the last know state before the exception was raised. The cleanup
   actions will **NOT** be called if the actions do not raise any exception.
   [#25](https://github.com/grisp/grisp_tools/pull/25)
+- Add a firmware command to generate GRiSP 2 binary firmwares: [#26](https://github.com/grisp/grisp_tools/pull/26)
 
 ### Changed
 
