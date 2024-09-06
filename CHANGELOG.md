@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.7.0] - 2024-09-06
+
 ### Added
 
 - Exposed previously private function `grisp_tools_util:read_file/2`: [#25](https://github.com/grisp/grisp_tools/pull/25)
@@ -177,7 +179,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.6.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.7.0...HEAD
+[2.7.0]: https://github.com/grisp/grisp_tools/compare/2.6.1...2.7.0
 [2.6.1]: https://github.com/grisp/grisp_tools/compare/2.6.0...2.6.1
 [2.6.0]: https://github.com/grisp/grisp_tools/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/grisp/grisp_tools/compare/2.4.0...2.5.0
