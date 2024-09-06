@@ -270,6 +270,7 @@ dockerize_command(Cmd, S0) ->
     {docker, Image} = mapz:deep_get([paths, toolchain], S0),
     BuildSubdir = string:prefix(BuidPath, Cwd),
     ["docker run",
+    " --rm ",
     [" -e " ++ K ++ "=" ++ io_lib:format("~s",[V])|| {K,V} <- maps:to_list(Env)],
     " --volume " ++ Cwd ++ ":" ++ Cwd,
     " " ++ Image ++ " sh -c \"cd " ++ Cwd ++ BuildSubdir,
