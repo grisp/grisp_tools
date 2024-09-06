@@ -23,6 +23,7 @@ and this project adheres to
   actions will **NOT** be called if the actions do not raise any exception.
   [#25](https://github.com/grisp/grisp_tools/pull/25)
 - Add a firmware command to generate GRiSP 2 binary firmwares: [#26](https://github.com/grisp/grisp_tools/pull/26)
+- Add a pack command to generate a GRiSP 2 software update package: [#28](https://github.com/grisp/grisp_tools/pull/28)
 
 ### Changed
 

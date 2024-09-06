@@ -1,5 +1,6 @@
 -module(grisp_tools_firmware).
 
+-include("grisp_tools.hrl").
 -include_lib("kernel/include/file.hrl").
 
 % API
@@ -9,26 +10,6 @@
 -import(grisp_tools_util, [shell/2]).
 -import(grisp_tools_util, [shell/3]).
 
-
-%--- MACROS --------------------------------------------------------------------
-
--define(MiB, * 1024 * 1024).
--define(DOCKER_TOOLCHAIN_ROOT, "/grisp2-rtems-toolchain/rtems/5").
--define(GRISP2_BOOTLOADER_FILENAMES, [
-    "foobar.img",
-    "barebox-phytec-phycore-imx6ull-emmc-512mb.img",
-    "barebox-phytec-phycore-imx6ul-emmc-512mb.img"
-]).
--define(GRISP2_RESERVED_SIZE, (4?MiB)).
--define(GRISP2_SYSTEM_SIZE, (256?MiB)).
--define(GRISP2_IMAGE_SIZE, (?GRISP2_RESERVED_SIZE + 2 * ?GRISP2_SYSTEM_SIZE)).
--define(GRISP2_PARTITIONS, [
-        #{type => fat32, size => ?GRISP2_SYSTEM_SIZE,
-                         start => ?GRISP2_RESERVED_SIZE},
-        #{type => fat32, size => ?GRISP2_SYSTEM_SIZE}
-]).
--define(GRISP2_FAT_TYPE, 32).
--define(GRISP2_FAT_CLUSTER_SIZE, 4).
 
 %--- API -----------------------------------------------------------------------
 
@@ -363,7 +344,7 @@ docker_check_image(State, ImageName) ->
 
 docker_export(State, ImageName, InPath, OutDir) ->
     ok = grisp_tools_util:ensure_dir(OutDir),
-    Command = ["docker run --volume ", OutDir,  ":", OutDir,
+    Command = ["docker run --rm --volume ", OutDir,  ":", OutDir,
                " ", ImageName, " sh -c \"cd ", OutDir,
                " && cp -rf '", InPath, "' .\""],
     case shell(State, Command, [return_on_error]) of

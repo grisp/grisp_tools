@@ -9,6 +9,7 @@
 -export([report/1]).
 -export([configure/1]).
 -export([firmware/1]).
+-export([pack/1]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -33,3 +34,5 @@ report(Opts) -> grisp_tools_report:run(Opts).
 configure(Opts) -> grisp_tools_configure:run(Opts).
 
 firmware(Opts) -> grisp_tools_firmware:run(Opts).
+
+pack(Opts) -> grisp_tools_pack:run(Opts).
