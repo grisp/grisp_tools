@@ -135,7 +135,8 @@ parse_toolchain(#{name := Name} = File, {Acc, Latest}) ->
             NewFile = File#{
                 os => OS,
                 os_version => OSVsn,
-                revision => Revision
+                revision => Revision,
+                latest => false
             },
             {[NewFile|Acc], Latest}
     end.
