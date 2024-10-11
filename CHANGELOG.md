@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.7.1] - 2024-10-11
+
+### Changed
+
+- Insert key to normalize toolchain maps result in package command
+
 ## [2.7.0] - 2024-09-06
 
 ### Added
@@ -179,7 +185,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.7.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.7.1...HEAD
+[2.7.1]: https://github.com/grisp/grisp_tools/compare/2.7.0...2.7.1
 [2.7.0]: https://github.com/grisp/grisp_tools/compare/2.6.1...2.7.0
 [2.6.1]: https://github.com/grisp/grisp_tools/compare/2.6.0...2.6.1
 [2.6.0]: https://github.com/grisp/grisp_tools/compare/2.5.0...2.6.0
