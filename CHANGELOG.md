@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+## Changes
+
+- The release files are now copied recursively instead of calling the OS command
+  `cp -r`. This is because we are now calculating a hash of all the deployed
+  files to generate a software release unique identifier.
+- The deploy command now generate a MANIFEST files that contains information
+  about the deployed software in a term file that can be read with 
+  file:consult/1.
+
 ## [2.7.1] - 2024-10-11
 
 ### Changed
