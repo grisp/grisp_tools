@@ -279,7 +279,7 @@ dockerize_command(Cmd, S0) ->
 apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
     Context = mapz:deep_get([build, context], State0),
-    grisp_tools_util:write_file(Dir, Patch, Context),
+    grisp_tools_util:copy_file(Dir, Patch, Context),
     State4 = case shell(State0,
                 ["git apply ", Name, " --ignore-whitespace --reverse --check"],
                 [{cd, Dir}, return_on_error]) of
@@ -308,7 +308,7 @@ sort_files(Apps, Files) ->
 copy_file(Root, File, State0) ->
     State1 = event(State0, [File]),
     Context = mapz:deep_get([build, context], State0),
-    grisp_tools_util:write_file(Root, File, Context),
+    grisp_tools_util:copy_file(Root, File, Context),
     State1.
 
 run_hooks(#{paths := #{toolchain := {ToolchainType, _}}} = S0, Type, Opts) ->

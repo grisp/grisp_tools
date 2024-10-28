@@ -1,5 +1,7 @@
 -module(grisp_tools_util).
 
+-include_lib("kernel/include/file.hrl").
+
 % API
 -export([weave/2]).
 -export([weave/3]).
@@ -26,7 +28,9 @@
 -export([build_hash_format/1]).
 -export([merge_build_config/2]).
 -export([source_hash/2]).
--export([write_file/3]).
+-export([copy_directory/3, copy_directory/4]).
+-export([copy_file/3, copy_file/4]).
+-export([write_file/3, write_file/4]).
 -export([read_file/2]).
 -export([with_file/3]).
 -export([pipe/2]).
@@ -38,6 +42,9 @@
 -export([make_relative/2]).
 -export([maybe_relative/2]).
 -export([maybe_relative/3]).
+-export([filelib_ensure_path/1]).
+-export([format_term/1]).
+
 
 %--- Macros --------------------------------------------------------------------
 
@@ -236,11 +243,36 @@ source_hash(Apps, Board) ->
     Targets2 = maps:merge(Targets, NIFFiles),
     hash_files(Targets2).
 
-write_file(Root, #{target := Target} = File, Context) ->
+copy_directory(State0, Src, Dest) ->
+    recursive_copy(State0, Src, Dest, [], #{}).
+
+copy_directory(State0, Src, Dest, Opts) ->
+    recursive_copy(State0, Src, Dest, [], Opts).
+
+copy_file(Root, File, Context) ->
     Content = read_file(File, Context),
+    write_file(Root, File, Content).
+
+copy_file(Root, File, Context, FileInfo) ->
+    Content = read_file(File, Context),
+    write_file(Root, File, Content, FileInfo).
+
+write_file(Root, File, Content) ->
+    write_file(Root, File, Content, undefined).
+
+write_file(Root, #{target := Target}, Content, FileInfo) ->
     Destination = filename:join(Root, Target),
     ensure_dir(Destination),
-    ok = file:write_file(Destination, Content).
+    ok = file:write_file(Destination, Content),
+    case FileInfo of
+        undefined -> ok;
+        Rec when is_record(Rec, file_info) ->
+            case file:write_file_info(Destination, FileInfo, [{time, posix}]) of
+                ok -> ok;
+                {error, Reason} ->
+                    erlang:error({write_file_info_error, Reason, Destination})
+            end
+    end.
 
 read_file(#{source := {template, Source}}, Context) ->
     grisp_tools_template:render(Source, Context);
@@ -309,6 +341,28 @@ maybe_relative(BasePath, Path, MaxDoubleDots) ->
             RelParts = lists:duplicate(length(BaseRem), "..") ++ PathRem,
             filename:join(RelParts)
     end.
+
+% For OTP < 25
+filelib_ensure_path(Path) ->
+    DirPath = filename:dirname(Path),
+    case filelib:ensure_dir(filename:join(DirPath, "dummy.file")) of
+        ok -> ok;
+        {error, enoent} ->
+            filelib_ensure_path(DirPath),
+            file:make_dir(DirPath);
+        {error, Reason} ->
+            erlang:error(Reason)
+    end.
+
+%% @doc Formats a term into a UTF8 encoded binary that can be later read by
+%% file:consult/1. If the binaries are strings, they are supposed to be encoded
+%% in UTF8.
+-spec format_term(term()) -> binary().
+format_term(Term) ->
+    IoData = format_term(<<"    ">>, 0, [], Term),
+    Bin = unicode:characters_to_binary(IoData, utf8),
+    <<"%% coding: utf-8\n", Bin/binary>>.
+
 
 %--- Internal ------------------------------------------------------------------
 
@@ -428,8 +482,7 @@ hash_file_read(Handle, Context) ->
         eof       -> {ok, crypto:hash_final(Context)}
     end.
 
-format_hash(sha256, <<Int:256/big-unsigned-integer>>) -> format_hash(Int);
-format_hash(md5, <<Int:128/big-unsigned-integer>>)    -> format_hash(Int).
+format_hash(sha256, <<Int:256/big-unsigned-integer>>) -> format_hash(Int).
 
 format_hash(Int) when is_integer(Int) ->
     list_to_binary(io_lib:format("~.16b", [Int])).
@@ -525,3 +578,158 @@ file_info(Name, App, Source, Target) ->
 path_to_binary({template, Path}) when is_list(Path) -> {template, iolist_to_binary(Path)};
 path_to_binary(Path) when is_list(Path) -> iolist_to_binary(Path);
 path_to_binary(Path) -> Path.
+
+resolve_symlink(FilePath) ->
+    case file:read_link_info(FilePath, [{time, posix}]) of
+        {ok, #file_info{type = symlink}} ->
+            case file:read_link(FilePath) of
+                {ok, Target} -> resolve_symlink(Target);
+                {error, Reason} ->
+                    erlang:error({read_link_error, Reason, FilePath})
+            end;
+        {error, Reason} ->
+            erlang:error({read_link_info_error, Reason, FilePath});
+        _ ->
+            FilePath
+    end.
+
+recursive_copy_file(State0, SrcPath, DestRoot, RelPath, FileInfo,
+                    #{copy_fun := CopyFun})
+  when is_function(CopyFun, 5) ->
+    CopyFun(State0, SrcPath, DestRoot, RelPath, FileInfo);
+recursive_copy_file(State0, SrcPath, DestRoot, RelPath, FileInfo, _Opts) ->
+    FileSpec = #{source => SrcPath, target => RelPath, name => RelPath},
+    copy_file(DestRoot, FileSpec, #{}, FileInfo),
+    State0.
+
+recursive_create_dir(State0, DestRoot, RelPath, FileInfo,
+                    #{create_dir_fun := CreateDirFun})
+  when is_function(CreateDirFun, 4) ->
+    CreateDirFun(State0, DestRoot, RelPath, FileInfo);
+recursive_create_dir(State0, DestRoot, RelPath, FileInfo, _Opts) ->
+    DestPath = filename:join(DestRoot, RelPath),
+    filelib_ensure_path(filename:join(DestPath, "dummy.file")),
+    case FileInfo of
+        Rec when is_record(Rec, file_info) ->
+            case file:write_file_info(DestPath, FileInfo, [{time, posix}]) of
+                ok -> State0;
+                {error, Reason} ->
+                    erlang:error({write_file_info_error, Reason, DestPath})
+            end
+    end.
+
+recursive_copy(State0, Src, Dest, RevRelNames, Opts) ->
+    {SrcPath, RelPath} = case RevRelNames of
+        [] -> {Src, ""};
+        _ ->
+            R = filename:join(lists:reverse(RevRelNames)),
+            {filename:join(Src, R), R}
+    end,
+    case file:read_file_info(SrcPath, [{time, posix}]) of
+        {ok, #file_info{type = directory} = FileInfo} ->
+            State1 = recursive_create_dir(State0, Dest, RelPath, FileInfo, Opts),
+            case file:list_dir(SrcPath) of
+                {error, Reason} ->
+                    erlang:error({list_dir_error, Reason, SrcPath});
+                {ok, Names} ->
+                    lists:foldl(fun(Name, State) ->
+                        RevRelNames2 = [Name | RevRelNames],
+                        recursive_copy(State, Src, Dest, RevRelNames2, Opts)
+                    end, State1, Names)
+            end;
+        {ok, #file_info{type = regular} = FileInfo} ->
+            case file:read_link_info(SrcPath, [{time, posix}]) of
+                {ok, #file_info{type = regular}} ->
+                    recursive_copy_file(State0, SrcPath, Dest, RelPath,
+                                        FileInfo, Opts);
+                {ok, #file_info{type = symlink}} ->
+                    SrcPath2 = resolve_symlink(SrcPath),
+                    recursive_copy_file(State0, SrcPath2, Dest, RelPath,
+                                        FileInfo, Opts);
+                {ok, #file_info{type = Other}} ->
+                    erlang:error({invalid_file_type, Other, SrcPath});
+                {error, Reason} ->
+                    erlang:error({read_link_info_error, Reason, SrcPath})
+            end;
+        {ok, #file_info{type = Other}} ->
+            erlang:error({invalid_file_type, Other, SrcPath});
+        {error, Reason} ->
+            erlang:error({read_file_info_error, Reason, SrcPath})
+    end.
+
+format_term_value(Val)
+  when is_integer(Val); is_float(Val) ->
+    io_lib:format("~w", [Val]);
+format_term_value(Val)
+  when is_atom(Val) ->
+    io_lib:write_atom(Val);
+format_term_value([]) ->
+    "[]";
+format_term_value(Val)
+  when is_list(Val) ->
+    io_lib:write_string(Val);
+format_term_value(Val)
+  when is_binary(Val) ->
+    try unicode:characters_to_list(Val, utf8) of
+        Unicode ->
+            try io_lib:write_latin1_string(Unicode) of
+                Str -> io_lib:format("<<~ts>>", [Str])
+            catch
+                _:_ ->
+                    Str = io_lib:write_string(Unicode),
+                    io_lib:format("<<~ts/utf8>>", [Str])
+            end
+    catch
+        _:_ ->
+            io_lib:format("~w", [Val])
+    end.
+
+format_term(_Prefix, _Level, Acc, []) ->
+    lists:reverse(Acc);
+format_term(Prefix, Level, Acc, [{Key, Val} | Rest])
+  when is_atom(Key) orelse is_binary(Key),
+       is_atom(Val) orelse is_binary(Val)
+       orelse is_integer(Val) orelse is_float(Val) ->
+    Indent = binary:copy(Prefix, Level),
+    Ending = case {Level, Rest} of
+        {0, _} -> <<".">>;
+        {_, []} -> <<>>;
+        {_, _} -> <<",">>
+    end,
+    KeyStr = format_term_value(Key),
+    ValStr = format_term_value(Val),
+    ResStr = io_lib:format("~s{~ts, ~ts}~s~n",
+                           [Indent, KeyStr, ValStr, Ending]),
+    format_term(Prefix, Level, [ResStr | Acc], Rest);
+format_term(Prefix, Level, Acc, [Val | Rest])
+  when is_atom(Val) orelse is_binary(Val)
+       orelse is_integer(Val) orelse is_float(Val) ->
+    Indent = binary:copy(Prefix, Level),
+    Ending = case {Level, Rest} of
+        {0, _} -> <<".">>;
+        {_, []} -> <<>>;
+        {_, _} -> <<",">>
+    end,
+    ValStr = format_term_value(Val),
+    ResStr = io_lib:format("~s~ts~s~n", [Indent, ValStr, Ending]),
+    format_term(Prefix, Level, [ResStr | Acc], Rest);
+format_term(Prefix, Level, Acc, [{Key, Val} | Rest])
+  when is_atom(Key) orelse is_binary(Key), is_list(Val) ->
+    Indent = binary:copy(Prefix, Level),
+    Ending = case {Level, Rest} of
+        {0, _} -> <<".">>;
+        {_, []} -> <<>>;
+        {_, _} -> <<",">>
+    end,
+    KeyStr = format_term_value(Key),
+    ResStr = case io_lib:printable_unicode_list(Val) of
+        true ->
+            ValStr = format_term_value(Val),
+            io_lib:format("~s{~ts, ~ts}~s~n",
+                          [Indent, KeyStr, ValStr, Ending]);
+        false ->
+            SubStr = format_term(Prefix, Level + 1, [], Val),
+            io_lib:format("~s{~ts, [~n~ts~s]}~s~n",
+                          [Indent, KeyStr, SubStr, Indent, Ending])
+    end,
+    format_term(Prefix, Level, [ResStr | Acc], Rest).
