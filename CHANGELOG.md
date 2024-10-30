@@ -16,6 +16,9 @@ and this project adheres to
 - The deploy command now generate a MANIFEST files that contains information
   about the deployed software in a term file that can be read with 
   file:consult/1.
+- The pack command now validates the firmware by creating an image, writing the
+  firmware and trying to mount it. If the firmware contains a software build 
+  manifest, it will also be included in the update manifest.
 
 ## [2.7.1] - 2024-10-11
 
