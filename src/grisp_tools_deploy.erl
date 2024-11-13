@@ -31,9 +31,9 @@ run(State) ->
 
 %--- Tasks ---------------------------------------------------------------------
 
-package(#{custom_build := true, build := #{hash := #{value := Hash}}} = State0) ->
+package(State0 = #{custom_build := true, build := #{hash := #{value := Hash}}}) ->
     event(State0, [{type, {custom_build, Hash}}]);
-package(#{build := #{hash := #{value := Hash}}} = State0) ->
+package(State0 = #{build := #{hash := #{value := Hash}}}) ->
     State1 = event(State0, [{type, {package, Hash}}]),
     grisp_tools_util:weave(State1, [
         fun meta/1,
@@ -42,7 +42,7 @@ package(#{build := #{hash := #{value := Hash}}} = State0) ->
         fun extract/1
     ]).
 
-release(#{paths := #{install := InstallPath}} = State0) ->
+release(State0 = #{paths := #{install := InstallPath}}) ->
     Release = maps:get(release, State0, #{}),
     release(State0, maps:merge(Release, #{erts => InstallPath})).
 
@@ -53,6 +53,7 @@ distribute(State0 = #{distribute := Dists}) ->
             fun dist_prepare/1,
             fun dist_release/1,
             fun dist_files/1,
+            fun dist_write_manifest/1,
             fun dist_finish/1,
             fun(S) -> run_script([dist, scripts], post_script, S) end
         ], [fun dist_abort/1])
@@ -75,9 +76,9 @@ init(State0) ->
     rm(Tmp),
     mapz:deep_merge([State1, #{package => #{file => File, tmp => Tmp}}]).
 
-download(#{package_source := cache} = State0) ->
+download(State0 = #{package_source := cache}) ->
     event(State0, ['_skip']);
-download(#{package := #{meta := Meta}} = State0) ->
+download(State0 = #{package := #{meta := Meta}}) ->
     Client = http_init(),
     URI = grisp_tools_util:cdn_path(otp, State0),
     Headers = [{"If-None-Match", ETag} || #{etag := ETag} <- [Meta]],
@@ -94,7 +95,7 @@ download(#{package := #{meta := Meta}} = State0) ->
     end,
     State2.
 
-extract(#{package := #{state := State, file := File}} = State0)
+extract(State0 = #{package := #{state := State, file := File}})
         when (State == downloaded) or (State == not_modified) ->
     #{paths := #{install := InstallPath}} = State0,
     case filelib:is_dir(InstallPath) of
@@ -111,11 +112,27 @@ extract_really(File, InstallPath, State0) ->
         {error, Reason} -> event(State1, [{error, Reason}])
     end.
 
+dist_hash_prepare(State0) ->
+    State0#{dist_hash => crypto:hash_init(sha)}.
+
+dist_hash_update(State0 = #{dist_hash := Ctx0}, FileId, FileContent)
+  when Ctx0 =/= undefined ->
+    Ctx1 = crypto:hash_update(Ctx0, ["<", FileId, ":", FileContent, ">"]),
+    State0#{dist_hash => Ctx1};
+dist_hash_update(State0 = #{dist_hash := undefined}, _FileId, _FileContent) ->
+    State0.
+
+dist_hash_finalize(State0 = #{dist_hash := Ctx0})
+  when Ctx0 =/= undefined ->
+    {State0#{dist_hash => undefined}, crypto:hash_final(Ctx0)};
+dist_hash_finalize(State0) ->
+    {State0, undefined}.
+
 dist_prepare(State0 = #{dist := #{type := copy, destination := Dest}}) ->
     case file:read_file_info(Dest) of
         {ok, #file_info{type = directory, access = Access}}
           when Access =:= write; Access =:= read_write ->
-            State0;
+            dist_hash_prepare(State0);
         {ok, #file_info{type = directory}} ->
             event(State0, [{error, dir_not_writable, Dest}]);
         {ok, #file_info{}} ->
@@ -144,11 +161,11 @@ dist_prepare(State0 = #{dist := #{type := archive, destination := Dest,
     end,
     grisp_tools_util:ensure_dir(Dest),
     case erl_tar:open(Dest, TarOpts) of
-        {ok, TarDesc} -> State0#{tar_desc => TarDesc};
+        {ok, TarDesc} -> dist_hash_prepare(State0#{tar_desc => TarDesc});
         {error, Reason} -> event(State0, [archive, {error, Reason}])
     end.
 
-dist_files(#{dist := #{destination := Dest}, release := Release} = State0) ->
+dist_files(State0 = #{dist := #{destination := Dest}, release := Release}) ->
     #{paths := #{install := InstallPath}} = State0,
     State1 = event(State0, [files, {init, Dest}]),
     ERTSPath = filelib:wildcard(binary_to_list(filename:join(InstallPath, "erts-*"))),
@@ -161,28 +178,57 @@ dist_files(#{dist := #{destination := Dest}, release := Release} = State0) ->
     },
     maps:fold(
         fun(_Name, File, S) ->
-            write_file(S, File, Context)
+            copy_file(S, File, Context)
         end,
         State1,
         mapz:deep_get([deploy, overlay, files], State0)
     ).
 
-write_file(#{dist := #{type := archive}, tar_desc := TarDesc} = State0,
-           #{target := Target} = File, Context) ->
-    Content = iolist_to_binary(grisp_tools_util:read_file(File, Context)),
-    State1 = event(State0, [files, {copy, File}]),
-    case erl_tar:add(TarDesc, Content, binary_to_list(Target), []) of
+as_binary(Data) when is_atom(Data) -> atom_to_binary(Data);
+as_binary(Data) -> iolist_to_binary(Data).
+
+as_list(Data) when is_list(Data) -> Data;
+as_list(Data) when is_binary(Data) -> binary_to_list(Data).
+
+copy_file(State0 = #{dist := #{destination := Dest}}, File, Context) ->
+    copy_file(State0, Dest, File, undefined, Context).
+
+copy_file(State0, Dest, File, FileInfo, Context) ->
+    Content = as_binary(grisp_tools_util:read_file(File, Context)),
+    write_file(State0, Dest, File, FileInfo, Content).
+
+write_file(State0 = #{dist := #{destination := Dest}}, File, Content) ->
+    write_file(State0, Dest, File, undefined, Content).
+
+write_file(State0 = #{dist := #{type := archive}, tar_desc := TarDesc}, _Dest,
+           #{target := Target}, FileInfo, Content) ->
+    State1 = event(State0, [files, {copy, Target}]),
+    TarOpts = case FileInfo of
+        undefined -> [];
+        Rec when is_record(Rec, file_info) ->
+            % TAR files lose the files mode
+            [{K, V} || {K, V} <- [
+                {atime, Rec#file_info.atime},
+                {mtime, Rec#file_info.mtime},
+                {ctime, Rec#file_info.ctime},
+                {uid, Rec#file_info.uid},
+                {gid, Rec#file_info.gid}
+             ], V =/= undefined]
+    end,
+    ContentBin = iolist_to_binary(Content),
+    case erl_tar:add(TarDesc, ContentBin, as_list(Target), TarOpts) of
         {error, Reason} -> error(Reason);
-        ok -> State1
+        ok -> dist_hash_update(State1, Target, Content)
     end;
-write_file(#{dist := #{type := copy, destination := Dest, force := Force}} = State0,
-           #{target := Target} = File, Context) ->
+write_file(State0 = #{dist := #{type := copy, force := Force}}, Dest,
+           File = #{target := Target}, FileInfo, Content) ->
     Path = filename:join(Dest, Target),
-    State1 = event(State0, [files, {copy, File}]),
+    State1 = event(State0, [files, {copy, Target}]),
+    State2 = dist_hash_update(State1, Target, Content),
     force_execute(Path, Force, fun(F) ->
         grisp_tools_util:ensure_dir(F),
-        grisp_tools_util:write_file(Dest, File, Context)
-    end, State1).
+        grisp_tools_util:write_file(Dest, File, Content, FileInfo)
+    end, State2).
 
 force_execute(File, Force, Fun, State0) ->
     State1 = case {filelib:is_file(File), Force} of
@@ -194,29 +240,114 @@ force_execute(File, Force, Fun, State0) ->
     Fun(File),
     State1.
 
-dist_release(#{tar_desc := TarDesc, release := Release,
-               dist := #{type := archive}} = State0) ->
-    #{name := RelName, dir := Source} = Release,
+dist_create_dir_callback(State0 = #{dist := #{type := archive}},
+                         _DestRoot, _RelPath, _FileInfo) ->
+    % TAR files do not contains empty directories...
+    State0;
+dist_create_dir_callback(State0 = #{dist := #{type := copy}},
+                         DestRoot, RelPath, FileInfo) ->
+    DestPath = filename:join(DestRoot, RelPath),
+    grisp_tools_util:filelib_ensure_path(filename:join(DestPath, "dummy.file")),
+    case file:write_file_info(DestPath, FileInfo, [{time, posix}]) of
+        ok -> State0;
+        {error, Reason} ->
+            erlang:error({write_file_info_error, Reason, DestPath})
+    end.
+
+dist_copy_callback(State0, SrcPath, DestRoot, RelPath, FileInfo) ->
+    FileSpec = #{source => SrcPath, target => RelPath, name => RelPath},
+    copy_file(State0, DestRoot, FileSpec, FileInfo, #{}).
+
+dist_release(State0 = #{release := #{name := RelName, dir := Source},
+                        dist := #{type := archive}}) ->
     Target = atom_to_list(RelName),
     State1 = event(State0, [release, {archive, Source, Target}]),
-    case erl_tar:add(TarDesc, Source, Target, [dereference]) of
-        {error, Reason} -> error(Reason);
-        ok -> State1
-    end;
-dist_release(#{release := Release, dist := #{type := copy} = Dist} = State0) ->
-    #{name := RelName, dir := Source} = Release,
-    #{destination := Dest, force := Force} = Dist,
-    Target = filename:join(Dest, RelName),
+    Opts = #{copy_fun => fun dist_copy_callback/5,
+             create_dir_fun => fun dist_create_dir_callback/4},
+    grisp_tools_util:copy_directory(State1, Source, "", Target, Opts);
+dist_release(State0 = #{release := #{name := RelName, dir := Source},
+                        dist := #{type := copy, destination := Dest}}) ->
+    Target = atom_to_list(RelName),
     State1 = event(State0, [release, {copy, Source, Target}]),
-    CopyExe = case Force of
-        true  -> "cp -Rf";
-        false -> "cp -R"
-    end,
-    Command = string:join([CopyExe, qoute(Source ++ "/"), qoute(Target)], " "),
-    {Output, State2} = shell(State1, Command),
-    event(State2, [release, {copy, {result, Output}}]).
+    Opts = #{copy_fun => fun dist_copy_callback/5,
+             create_dir_fun => fun dist_create_dir_callback/4},
+    grisp_tools_util:copy_directory(State1, Source, Dest, Target, Opts).
 
-qoute(String) -> "\"" ++ String ++ "\"".
+parse_grisp_package_file(Line) ->
+    case binary:split(Line, <<" ">>, [global]) of
+        [Path, Hash] -> {Path, Hash};
+        Parts ->
+            % The path contains a space
+            Hash = lists:last(Parts),
+            Path = binary:part(Line, {0, byte_size(Line) - byte_size(Hash) - 1}),
+            {Path, Hash}
+    end.
+
+read_grisp_package_files(ErtsPath) ->
+    case file:read_file(filename:join(ErtsPath, "GRISP_PACKAGE_FILES")) of
+        {error, enoent} -> undefined;
+        {ok, Data} ->
+            Lines = binary:split(Data, <<"\n">>, [global, trim]),
+             [parse_grisp_package_file(Line) || Line <- Lines]
+    end.
+
+read_grisp_toolchain_revision(ErtsPath) ->
+    case file:read_file(filename:join(ErtsPath, "GRISP_TOOLCHAIN_REVISION")) of
+        {error, enoent} -> undefined;
+        {ok, Data} ->
+            re:replace(Data, <<"(^\\s+|\\s+$)">>, <<>>,
+                       [global, {return, binary}])
+    end.
+
+validate_manifest(Data, Expected) ->
+    TempFilePath = string:chomp(os:cmd("mktemp")),
+    try
+        file:write_file(TempFilePath, Data),
+        case file:consult(TempFilePath) of
+            {ok, Expected} -> ok;
+            {ok, _Other} ->
+                {internal_manifest_error, inconsistent, Data};
+            {error, Reason} ->
+                {internal_manifest_error, Reason, Data}
+        end
+    after
+        os:cmd("rm -f " ++ TempFilePath)
+    end.
+
+dist_write_manifest(State0 = #{platform := Platform,
+                         otp_version := {_, _, _, OtpVer},
+                         release := Release}) ->
+    #{name := RelName, version := RelVsn, erts := ErtsPath} = Release,
+    Profiles = maps:get(profiles, Release, []),
+    {State1, HashBin} = dist_hash_finalize(State0),
+    Hash = iolist_to_binary([io_lib:format("~2.16.0b", [Byte])
+                             || <<Byte>> <= HashBin]),
+    ToolchainRev = read_grisp_toolchain_revision(ErtsPath),
+    PackageFiles = read_grisp_package_files(ErtsPath),
+    ManifestTerms = [
+        {platform, as_binary(Platform)},
+        {id, Hash},
+        {relname, as_binary(RelName)},
+        {relvsn, as_binary(RelVsn)},
+        {profiles, Profiles},
+        {package, [
+            {toolchain, [
+                {revision, as_binary(ToolchainRev)}
+            ]},
+            {rtems, [
+                % FIXME: whe finally support rtems 6, we need a way
+                % to figure the version out.
+                {version, <<"5">>}
+            ]},
+            {otp, [
+                {version, as_binary(OtpVer)}
+            ]},
+            {custom, PackageFiles}
+        ]}
+    ],
+    Manifest = grisp_tools_util:format_term(ManifestTerms),
+    validate_manifest(Manifest, ManifestTerms),
+    write_file(State1, #{target => <<"MANIFEST">>}, Manifest).
 
 dist_finish(State0 = #{tar_desc := TarDesc,
                        dist := #{type := archive, destination := Dest}}) ->
@@ -236,7 +367,7 @@ dist_abort(State0) ->
 
 % Helpers
 
-download_loop(ReqID, #{package := #{tmp := Tmp}} = State0) ->
+download_loop(ReqID, State0 = #{package := #{tmp := Tmp}}) ->
     with_file(Tmp, [raw, append, binary], fun(Handle) ->
         download_loop({ReqID, undefined}, Handle, State0, 0)
     end).
