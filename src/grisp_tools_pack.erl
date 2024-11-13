@@ -86,9 +86,15 @@ package(State) ->
     grisp_tools_util:weave(State, [
         fun expand_bootloader/1,
         fun expand_system/1,
+        fun create_image/1,
+        fun create_partitions/1,
+        fun copy_firmware/1,
+        fun extract_manifest/1,
+        fun close_image/1,
         fun build_package/1,
         fun cleanup/1
     ], [
+        fun close_image/1,
         fun cleanup/1
     ]).
 
@@ -106,12 +112,71 @@ expand_system(State = #{system := SysPath})
 expand_system(State) ->
     State.
 
-build_package(State = #{package := PackageFile}) ->
+create_image(State = #{temp_dir := TempDir}) ->
+    Opts = edifa_opts(State, #{temp_dir => TempDir}),
+    ImageFile = filename:join(TempDir, "emmc.img"),
+    case edifa:create(ImageFile, ?GRISP2_IMAGE_SIZE, Opts) of
+        {ok, Pid, State2} ->
+            State2#{edifa_pid => Pid};
+        {error, Reason, State2} ->
+            event(State2, [{error, Reason}])
+    end.
+
+create_partitions(State = #{edifa_pid := Pid}) ->
+    Opts = edifa_opts(State),
+    case edifa:partition(Pid, mbr, ?GRISP2_PARTITIONS, Opts) of
+        {ok, [_, _] = Partitions, State2} ->
+            State2#{partitions => Partitions};
+        {error, Reason, State2} ->
+            event(State2, [{error, Reason}])
+    end.
+
+copy_firmware(State = #{edifa_pid := Pid, system := ExpPath}) ->
+    Opts = edifa_opts(State, #{
+        count => ?GRISP2_SYSTEM_SIZE,
+        seek => ?GRISP2_RESERVED_SIZE
+    }),
+    case edifa:write(Pid, ExpPath, Opts) of
+        {ok, State2} -> State2;
+        {error, Reason, State2} ->
+            event(State2, [{error, Reason}])
+    end.
+
+extract_manifest(State = #{edifa_pid := Pid, partitions := [PartId | _]}) ->
+    Opts = edifa_opts(State),
+    case edifa:mount(Pid, PartId, Opts) of
+        {error, Reason, State2} ->
+            event(State2, [{error, Reason}]);
+        {ok, MountPoint, State2} ->
+            ManifestPath = filename:join(MountPoint, "MANIFEST"),
+            Manifest = case file:consult(ManifestPath) of
+                {error, _Reason} -> undefined;
+                {ok, Term} -> Term
+            end,
+            Opts2 = edifa_opts(State2),
+            case edifa:unmount(Pid, PartId, Opts2) of
+                {error, Reason, State2} ->
+                    event(State2, [{error, Reason}]);
+                {ok, State3} ->
+                    event(State3#{manifest => Manifest},
+                          [{manifest, Manifest}])
+            end
+    end.
+
+close_image(State = #{edifa_pid := Pid}) ->
+    case edifa:close(Pid, edifa_opts(State)) of
+        {ok, State2} -> maps:remove(edifa_pid, State2);
+        {error, Reason, State2} ->
+            event(State2, [{error, Reason}])
+    end.
+
+build_package(State = #{package := PackageFile, manifest := Manifest}) ->
     PackagerOpts1 = maps:with([name, version, block_size,
                                key_file, system, bootloader], State),
     PackagerOpts2 = PackagerOpts1#{
         tarball => true,
-        mbr => ?GRISP2_PARTITIONS
+        mbr => ?GRISP2_PARTITIONS,
+        manifest => Manifest
     },
     case grisp_update_packager:package(PackageFile, PackagerOpts2) of
         ok -> event(State, [{done, PackageFile}]);
@@ -119,7 +184,7 @@ build_package(State = #{package := PackageFile}) ->
     end.
 
 cleanup(State) ->
-    cleanup_temp_dir(State).
+    cleanup_temp_dir(cleanup_image(State)).
 
 cleanup_temp_dir(State = #{temp_dir := TempDir, cleanup_temp_dir := true}) ->
     {_, State2} = shell(State, "rm -rf '~s'", [TempDir]),
@@ -127,8 +192,28 @@ cleanup_temp_dir(State = #{temp_dir := TempDir, cleanup_temp_dir := true}) ->
 cleanup_temp_dir(State) ->
     State.
 
+cleanup_image(State = #{edifa_pid := Pid}) ->
+    case edifa:close(Pid, edifa_opts(State)) of
+        {ok, State2} -> maps:remove(edifa_pid, State2);
+        {error, _Reason, State2} -> maps:remove(edifa_pid, State2)
+    end;
+cleanup_image(State) ->
+    State.
+
 
 %--- Internal ------------------------------------------------------------------
+
+edifa_opts(State) ->
+    edifa_opts(State, #{}).
+
+edifa_opts(State, Opts) ->
+    Opts#{
+        log_handler => fun edifa_log_hanler/2,
+        log_state => State
+    }.
+
+edifa_log_hanler(Event, State) ->
+    event(State, [Event]).
 
 shell(State, Fmt, Args) ->
     Cmd = binary_to_list(iolist_to_binary(io_lib:format(Fmt, Args))),
