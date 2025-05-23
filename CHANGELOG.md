@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-## [2.7.2] - 2025-05-22
+## [2.7.2] - 2025-05-23
 
 ### Changed
 
@@ -21,6 +21,7 @@ and this project adheres to
 - The pack command now validates the firmware by creating an image, writing the
   firmware and trying to mount it. If the firmware contains a software build 
   manifest, it will also be included in the update manifest. [#34](https://github.com/grisp/grisp_tools/pull/34)
+- Use version 1.0.1 of grisp_update_packager [#38](https://github.com/grisp/grisp_tools/pull/38)
 
 ## [2.7.1] - 2024-10-11
 
