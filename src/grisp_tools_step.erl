@@ -124,6 +124,19 @@ collect(#{project_root := Root, platform := Platform,
     mapz:deep_put([build, hash], #{value => Hash, index => HashIndex}, S3).
 
 toolchain(#{paths := #{toolchain := {docker, _}}} = S0) -> S0;
+toolchain(#{platform := grisp_nano,
+            paths := #{toolchain := {directory, ToolchainRoot}}} = S0) ->
+    [error({toolchain_root_invalid, ToolchainRoot}) || not filelib:is_dir(ToolchainRoot)],
+    Files = [
+        ["GRISP_TOOLCHAIN_REVISION"],
+        ["GRISP_TOOLCHAIN_PLATFORM"],
+        ["grisp_buildinfo.hrl"],
+        ["arm-rtems6"],
+        ["arm-rtems6", "stm32u5-grisp-nano"],
+        ["bin","arm-rtems6-gcc"]
+    ],
+    [ check_toolchain_file([ToolchainRoot|File]) || File <- Files],
+    S0;
 toolchain(#{paths := #{toolchain := {directory, ToolchainRoot}}} = S0) ->
     [error({toolchain_root_invalid, ToolchainRoot}) || not filelib:is_dir(ToolchainRoot)],
     Files = [

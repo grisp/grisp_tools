@@ -45,6 +45,7 @@ run(Configuration) ->
             ]},
             {compile, [
                 fun configure/1,
+                fun update_preloaded/1,
                 fun boot/1,
                 fun install/1,
                 fun post/1
@@ -189,6 +190,12 @@ configure(#{build := Build, otp_version := {[Ver | _], _, _, _}} = S0) ->
         false ->
             event(S0, ['_skip'])
     end.
+
+update_preloaded(#{build := #{flags := #{update_prebuild := true}}} = State0) ->
+    Opts = [{cd, mapz:deep_get([paths, build], State0)}],
+    build_step("./otp_build update_preloaded --no-commit", Opts, State0);
+update_preloaded(State0) ->
+    event(State0, ['_skip']).
 
 boot(State0) ->
     Opts = [{cd, mapz:deep_get([paths, build], State0)}],
