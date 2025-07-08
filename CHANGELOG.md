@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-## [2.7.2] - 2025-05-22
+## [2.8.0] - 2025-07-08
 
 ### Changed
 
@@ -16,11 +16,16 @@ and this project adheres to
   `cp -r`. This is because we are now calculating a hash of all the deployed
   files to generate a software release unique identifier. [#33](https://github.com/grisp/grisp_tools/pull/33)
 - The deploy command now generate a MANIFEST files that contains information
-  about the deployed software in a term file that can be read with 
+  about the deployed software in a term file that can be read with
   file:consult/1. [#33](https://github.com/grisp/grisp_tools/pull/33)
 - The pack command now validates the firmware by creating an image, writing the
-  firmware and trying to mount it. If the firmware contains a software build 
+  firmware and trying to mount it. If the firmware contains a software build
   manifest, it will also be included in the update manifest. [#34](https://github.com/grisp/grisp_tools/pull/34)
+
+### Added
+
+- Support for GRiSP Nano [#39](https://github.com/grisp/grisp_tools/pull/39)
+- It is possible to update the preloaded modules when building OTP [#39](https://github.com/grisp/grisp_tools/pull/39)
 
 ## [2.7.1] - 2024-10-11
 
@@ -199,8 +204,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.7.2...HEAD
-[2.7.2]: https://github.com/grisp/grisp_tools/compare/2.7.1...2.7.2
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.0...HEAD
+[2.8.0]: https://github.com/grisp/grisp_tools/compare/2.7.1...2.8.0
 [2.7.1]: https://github.com/grisp/grisp_tools/compare/2.7.0...2.7.1
 [2.7.0]: https://github.com/grisp/grisp_tools/compare/2.6.1...2.7.0
 [2.6.1]: https://github.com/grisp/grisp_tools/compare/2.6.0...2.6.1
