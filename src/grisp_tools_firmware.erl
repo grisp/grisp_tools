@@ -370,7 +370,7 @@ deploy_bundle(State = #{edifa_pid := Pid, bundle := BundleFile}, PartId) ->
         {error, Reason, State2} ->
             event(State2, [{error, Reason}]);
         {ok, MountPoint, State2} ->
-            ExpandCmd = ["tar -C ", MountPoint, " -xzf ", BundleFile],
+            ExpandCmd = ["tar -C '", MountPoint, "' -xzf '", BundleFile, "'"],
             {{ok, _}, State3} = shell(State2, ExpandCmd),
             Opts2 = edifa_opts(State2),
             case edifa:unmount(Pid, PartId, Opts2) of
