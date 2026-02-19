@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-02-19
+
+### Fixed
+
+- Fix command construction so paths containing spaces are correctly quoted in shell commands
+
 ## [2.8.0] - 2025-07-08
 
 ### Changed
@@ -204,7 +210,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.1...HEAD
+[2.8.1]: https://github.com/grisp/grisp_tools/compare/2.8.0...2.8.1
 [2.8.0]: https://github.com/grisp/grisp_tools/compare/2.7.1...2.8.0
 [2.7.1]: https://github.com/grisp/grisp_tools/compare/2.7.0...2.7.1
 [2.7.0]: https://github.com/grisp/grisp_tools/compare/2.6.1...2.7.0
