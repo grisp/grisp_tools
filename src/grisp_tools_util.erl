@@ -366,9 +366,10 @@ format_term(Term) ->
 
 %% @doc Shell-quotes a value so it can be safely used as a single argument in
 %% POSIX shells (sh/bash/zsh). Uses single quotes and escapes embedded single
-%% quotes using the standard `'"'"'` sequence.
+%% quotes with the standard POSIX shell pattern.
 -spec shell_quote(iodata()) -> iolist().
 shell_quote(Value) ->
+    % using the standard `'"'"'` sequence.
     Bin = unicode:characters_to_binary(iolist_to_binary(Value), utf8, utf8),
     ["'", shell_quote_bin(Bin), "'"].
 
