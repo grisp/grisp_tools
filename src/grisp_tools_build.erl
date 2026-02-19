@@ -83,13 +83,15 @@ clone(#{repo_state := _State, otp_version := {_,_,_,Ver}} = S0) ->
     Branch = ["OTP-", Ver],
     % See https://github.com/erlang/rebar3/pull/2660
     S2 = mapz:deep_put([shell, env, "GIT_TERMINAL_PROMPT"], "0", S1),
-    {{ok, Output}, S3} = shell(S2,
-        "git clone "
-        "-b " ++ Branch ++ " "
-        "--depth 1 " ++
-        "--single-branch " ++
-        URL ++ " \"" ++ binary_to_list(BuildPath) ++ "\""
-    ),
+    Cmd = [
+        "git clone ",
+        "-b ", Branch, " ",
+        "--depth 1 ",
+        "--single-branch ",
+        URL, " ",
+        grisp_tools_util:shell_quote(BuildPath)
+    ],
+    {{ok, Output}, S3} = shell(S2, Cmd),
     event(mapz:deep_put([build, download], true, S3), [{output, Output}]).
 
 prepare(S0) ->
@@ -208,10 +210,12 @@ install(S0) ->
     grisp_tools_util:ensure_dir(filename:join(InstallPath, ".")),
     S1 = grisp_tools_util:pipe(S0, [
         fun(S) -> shell_ok(S,
-                           ["rm -rf ", filename:join(InstallPath, "*")],
+                           ["rm -rf ",
+                            grisp_tools_util:shell_quote(InstallPath), "/*"],
                            [{cd, InstallPath}]) end,
         fun(S) -> shell_ok(S,
-                           ["make install DESTDIR=", $", InstallPath, $"],
+                           ["make install DESTDIR=",
+                            grisp_tools_util:shell_quote(InstallPath)],
                            [{cd, BuildPath}]) end
     ]),
 
@@ -254,7 +258,8 @@ tar(#{build := #{flags := #{tar := true}}} = S0) ->
     Name = grisp_tools_util:package_name(S0),
     Package = filename:join(PackagePath, Name),
     grisp_tools_util:ensure_dir(Package),
-    shell_ok(S0, ["tar -zcf ", Package, " ."], [{cd, InstallPath}]),
+    shell_ok(S0, ["tar -zcf ", grisp_tools_util:shell_quote(Package), " ."],
+             [{cd, InstallPath}]),
     event(S0, [{file, relative(Package)}]);
 tar(S0) ->
     event(S0, ['_skip']).
@@ -276,30 +281,40 @@ dockerize_command(Cmd, S0) ->
     BuidPath = binary_to_list(mapz:deep_get([paths, build], S0)),
     {docker, Image} = mapz:deep_get([paths, toolchain], S0),
     BuildSubdir = string:prefix(BuidPath, Cwd),
-    ["docker run",
-    " --rm ",
-    [" -e " ++ K ++ "=" ++ io_lib:format("~s",[V])|| {K,V} <- maps:to_list(Env)],
-    " --volume " ++ Cwd ++ ":" ++ Cwd,
-    " " ++ Image ++ " sh -c \"cd " ++ Cwd ++ BuildSubdir,
-    " && " , Cmd, "\""].
+    VolumeArg = grisp_tools_util:shell_quote([Cwd, ":", Cwd]),
+    EnvArgs = [
+        [" -e ", grisp_tools_util:shell_quote([K, "=", V])]
+        || {K, V} <- maps:to_list(Env)
+    ],
+    Script = ["cd ", grisp_tools_util:shell_quote([Cwd, BuildSubdir]), " && ", Cmd],
+    [
+        "docker run --rm",
+        EnvArgs,
+        " --volume ", VolumeArg,
+        " ", grisp_tools_util:shell_quote(Image),
+        " sh -c ", grisp_tools_util:shell_quote(Script)
+    ].
 
 apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
     Context = mapz:deep_get([build, context], State0),
     grisp_tools_util:copy_file(Dir, Patch, Context),
     State4 = case shell(State0,
-                ["git apply ", Name, " --ignore-whitespace --reverse --check"],
+                ["git apply ", grisp_tools_util:shell_quote(Name),
+                 " --ignore-whitespace --reverse --check"],
                 [{cd, Dir}, return_on_error]) of
         {{ok, _Output}, State1} ->
             event(State1, [{skip, Patch}]);
         {{error, {1, _}}, State1} ->
             State2 = event(State1, [{apply, Patch}]),
             {{ok, _}, State3} = shell(State2,
-                                      "git apply --ignore-whitespace " ++ Name,
+                                      ["git apply --ignore-whitespace ",
+                                       grisp_tools_util:shell_quote(Name)],
                                       [{cd, Dir}]),
             State3
     end,
-    {{ok, _}, State5} = shell(State4, "rm " ++ Name, [{cd, Dir}]),
+    {{ok, _}, State5} = shell(State4, ["rm ", grisp_tools_util:shell_quote(Name)],
+                              [{cd, Dir}]),
     State5.
 
 sort_files(Apps, Files) ->
@@ -337,7 +352,7 @@ run_hooks(#{paths := #{toolchain := {ToolchainType, _}}} = S0, Type, Opts) ->
 
 delete_directory(BuildPath, S0) ->
     case filelib:is_dir(BuildPath) of
-        true -> shell_ok(S0, "rm -rf \"" ++ binary_to_list(BuildPath) ++ "\"", []);
+        true -> shell_ok(S0, ["rm -rf ", grisp_tools_util:shell_quote(BuildPath)], []);
         false -> S0
     end.
 
@@ -362,11 +377,13 @@ check_git_repository(BuildPath, S0) ->
 repo_sanity_check(Repo, S0) ->
     PlumbingTests = [
         {
-            "git --git-dir "++ Repo ++" fetch --dry-run",
+            ["git --git-dir ", grisp_tools_util:shell_quote(Repo),
+             " fetch --dry-run"],
             fun("") -> true; (_) -> false end
         },
         {
-            "git --git-dir "++ Repo ++" describe --tags",
+            ["git --git-dir ", grisp_tools_util:shell_quote(Repo),
+             " describe --tags"],
             fun(Out) ->
                 {_,_,_,V} = maps:get(otp_version, S0),
                 VersionTag = "OTP-"++binary_to_list(V)++"\n",

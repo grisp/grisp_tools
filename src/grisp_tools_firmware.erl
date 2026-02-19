@@ -250,7 +250,7 @@ cleanup_image(State) ->
     State.
 
 cleanup_temp_dir(State = #{temp_dir := TempDir, cleanup_temp_dir := true}) ->
-    {_, State2} = shell(State, ["rm -rf '", TempDir, "'"]),
+    {_, State2} = shell(State, ["rm -rf ", grisp_tools_util:shell_quote(TempDir)]),
     State2#{cleanup_temp_dir => false};
 cleanup_temp_dir(State) ->
     State.
@@ -336,7 +336,7 @@ select_bootloader(State, BaseDir, [Filename | Rest], CheckFun) ->
     end.
 
 docker_check_image(State, ImageName) ->
-    Command = ["docker manifest inspect '", ImageName, "'"],
+    Command = ["docker manifest inspect ", grisp_tools_util:shell_quote(ImageName)],
     case shell(State, Command, [return_on_error]) of
         {{ok, _}, State2} -> {ok, State2};
         {{error, _}, State2} -> {error, State2}
@@ -344,9 +344,16 @@ docker_check_image(State, ImageName) ->
 
 docker_export(State, ImageName, InPath, OutDir) ->
     ok = grisp_tools_util:ensure_dir(OutDir),
-    Command = ["docker run --rm --volume ", OutDir,  ":", OutDir,
-               " ", ImageName, " sh -c \"cd ", OutDir,
-               " && cp -rf '", InPath, "' .\""],
+    VolumeArg = grisp_tools_util:shell_quote([OutDir, ":", OutDir]),
+    Script = [
+        "cd ", grisp_tools_util:shell_quote(OutDir),
+        " && cp -rf ", grisp_tools_util:shell_quote(InPath), " ."
+    ],
+    Command = [
+        "docker run --rm --volume ", VolumeArg,
+        " ", grisp_tools_util:shell_quote(ImageName),
+        " sh -c ", grisp_tools_util:shell_quote(Script)
+    ],
     case shell(State, Command, [return_on_error]) of
         {{ok, _}, State2} -> {ok, State2};
         {{error, _}, State2} -> {error, State2}
@@ -370,7 +377,10 @@ deploy_bundle(State = #{edifa_pid := Pid, bundle := BundleFile}, PartId) ->
         {error, Reason, State2} ->
             event(State2, [{error, Reason}]);
         {ok, MountPoint, State2} ->
-            ExpandCmd = ["tar -C ", MountPoint, " -xzf ", BundleFile],
+            ExpandCmd = [
+                "tar -C ", grisp_tools_util:shell_quote(MountPoint),
+                " -xzf ", grisp_tools_util:shell_quote(BundleFile)
+            ],
             {{ok, _}, State3} = shell(State2, ExpandCmd),
             Opts2 = edifa_opts(State2),
             case edifa:unmount(Pid, PartId, Opts2) of

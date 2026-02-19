@@ -311,7 +311,7 @@ validate_manifest(Data, Expected) ->
                 {internal_manifest_error, Reason, Data}
         end
     after
-        os:cmd("rm -f " ++ TempFilePath)
+        _ = file:delete(TempFilePath)
     end.
 
 dist_write_manifest(State0 = #{platform := Platform,

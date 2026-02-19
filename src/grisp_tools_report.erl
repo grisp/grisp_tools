@@ -30,7 +30,7 @@ run(State) ->
 
 clean(#{flags := #{tar := true}} = S0) -> S0;
 clean(#{report_dir := ReportDir} = S0) ->
-    Cmd = lists:append(["rm -r ", ReportDir]),
+    Cmd = ["rm -r ", grisp_tools_util:shell_quote(ReportDir)],
     {_, S1} = shell(S0, Cmd, [return_on_error]),
     S1.
 
@@ -55,7 +55,11 @@ tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
             Dir = filename:dirname(ReportDir),
             TarFilename = "grisp-report_" ++ format_datetime() ++ ".tar.gz",
             TarPath = filename:join(Dir, TarFilename),
-            Cmd = lists:append(["tar -czvf ", TarPath, " -C ", ReportDir, " ."]),
+            Cmd = [
+                "tar -czvf ", grisp_tools_util:shell_quote(TarPath),
+                " -C ", grisp_tools_util:shell_quote(ReportDir),
+                " ."
+            ],
             {{ok, _Res}, S1} = shell(S0, Cmd),
             event(S1, [TarPath])
     end.
