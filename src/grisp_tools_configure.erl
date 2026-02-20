@@ -131,7 +131,7 @@ settings_options() ->
               description = "The name of the OTP application",
               hint = "Enter the name of your application"},
      #set_opts{prompt = "Erlang version", long = otp_version, short = $o,
-              type = string, default = "25",
+              type = string, default = "28",
               description = "The OTP version of the GRiSP app",
               hint = "Specify the Erlang version to use"},
      #set_opts{prompt = "SD Card path", long = dest, short = $d, type = string,
