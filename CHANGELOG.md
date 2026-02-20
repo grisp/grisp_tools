@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-02-20
+
+### Changed
+
+- The `configure` utility will set OTP 28 as default for new GRiSP projects
+
 ## [2.8.1] - 2026-02-19
 
 ### Fixed
@@ -210,7 +216,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.2...HEAD
+[2.8.2]: https://github.com/grisp/grisp_tools/compare/2.8.1...2.8.2
 [2.8.1]: https://github.com/grisp/grisp_tools/compare/2.8.0...2.8.1
 [2.8.0]: https://github.com/grisp/grisp_tools/compare/2.7.1...2.8.0
 [2.7.1]: https://github.com/grisp/grisp_tools/compare/2.7.0...2.7.1
