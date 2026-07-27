@@ -1,7 +1,4 @@
 <p>
-  <a href="https://github.com/grisp/grisp_tools/actions/workflows/continous_integration.yaml?query=branch%3Amaster">
-    <img alt="continous integration" src="https://img.shields.io/github/workflow/status/grisp/grisp_tools/Continuous%20Integration?style=flat-square"/>
-  </a>
   <a href="https://hex.pm/packages/grisp_tools">
     <img alt="hex.pm version" src="https://img.shields.io/hexpm/v/grisp_tools.svg?style=flat-square"/>
   </a>
