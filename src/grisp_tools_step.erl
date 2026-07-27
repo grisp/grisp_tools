@@ -62,10 +62,7 @@ version(#{otp_version_requirement := SVersion} = S0) ->
                 {Target, Current} -> event(S1, [{mismatch, Target, Current}])
             end,
             S3 = event(S2, [{selected, FoundFull, SVersion}]),
-            mapz:deep_merge(S3, #{
-                otp_version => Found,
-                otp_version_list => [<<"common">>] ++ version_list(Found, 1, [])
-            })
+            mapz:deep_merge(S3, #{otp_version => Found})
     end.
 
 available_versions(#{custom_build := true} = S0) ->
@@ -222,20 +219,6 @@ find_version_fuzzy({[{N, V}|Version], Pre, Build, Full}, Versions) ->
         end, Versions)
     ).
 
-version_list({Version, Pre, Build, _Full}, N, [Last|_] = List)
-  when N > length(Version) ->
-    Extra = case {Pre, Build} of
-        {<<>>, <<>>} -> [];
-        {Pre, <<>>} -> [iolist_to_binary([Last, "-", Pre])];
-        {<<>>, Build} -> [iolist_to_binary([Last, "+", Build])];
-        {Pre, Build} -> [iolist_to_binary([Last, "-", Pre, "+", Build])]
-    end,
-    lists:reverse(Extra ++ List);
-version_list({Version, _Pre, _Build, _Full} = Ver, N, List) ->
-    Components = [integer_to_list(V) || V <- lists:sublist(Version, N)],
-    Intermediate = iolist_to_binary(string:join(Components, ".")),
-    version_list(Ver, N + 1, [Intermediate|List]).
-
 validate_apps(State, Apps, Graph) ->
     lists:foldl(fun({A, #{dir := Dir}}, S) ->
         case {A, digraph:get_path(Graph, grisp, A)} of
@@ -254,11 +237,11 @@ collect_platform_files(Platform, #{sorted_apps := Apps} = State) ->
         collect_app_files(App, Platform, S)
     end, State, Apps).
 
-collect_app_files(App, Platform, #{apps := Apps, otp_version_list := Versions} = S0) ->
+collect_app_files(App, Platform, #{apps := Apps, otp_version := Version} = S0) ->
     Dir = mapz:deep_get([App, dir], Apps),
-    {BuildOverlay, Config} = grisp_tools_util:build_overlay(App, Dir, Platform, Versions),
+    {BuildOverlay, Config} = grisp_tools_util:build_overlay(App, Dir, Platform, Version),
     S1 = mapz:deep_merge(S0, #{build => #{overlay => BuildOverlay}}),
-    DeployOverlay = grisp_tools_util:deploy_overlay(App, Dir, Platform, Versions),
+    DeployOverlay = grisp_tools_util:deploy_overlay(App, Dir, Platform, Version),
     S2 = mapz:deep_merge(S1, #{deploy => #{overlay => DeployOverlay}}),
     mapz:deep_update_with([build, config], fun(C) ->
         grisp_tools_util:merge_build_config(C, Config)

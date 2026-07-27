@@ -171,8 +171,8 @@ rm(File) ->
         Error           -> error({delete_file_failed, File, Error})
     end.
 
-build_overlay(App, AppDir, Platform, Versions) ->
-    collect_overlay(AppDir, Platform, Versions, {#{}, #{}}, fun(Dir, {Files, Config}) ->
+build_overlay(App, AppDir, Platform, Version) ->
+    collect_overlay(AppDir, Platform, Version, {#{}, #{}}, fun(Dir, {Files, Config}) ->
         BuildDir = filename:join(Dir, build),
         NewFiles = mapz:deep_merge(Files, pipe(Files, [
             fun(S) -> collect_build_files(App, BuildDir, S) end,
@@ -184,24 +184,48 @@ build_overlay(App, AppDir, Platform, Versions) ->
         {NewFiles, collect_build_config(App, Dir, Config)}
     end).
 
-deploy_overlay(App, AppDir, Platform, Versions) ->
-    collect_overlay(AppDir, Platform, Versions, #{}, fun(Dir, Files) ->
+deploy_overlay(App, AppDir, Platform, Version) ->
+    collect_overlay(AppDir, Platform, Version, #{}, fun(Dir, Files) ->
         BuildDir = filename:join(Dir, deploy),
         mapz:deep_merge(Files, pipe(Files, [
             fun(S) -> collect_build_files(App, BuildDir, S) end
         ]))
     end).
 
-collect_overlay(Dir, Platform, Versions, Init, CollectFun) ->
+collect_overlay(Dir, Platform, Version, Init, CollectFun) ->
     PlatformDir = filename:join([Dir, grisp, Platform]),
     case filelib:is_dir(PlatformDir) of
         true ->
-            lists:foldl(fun(Version, Acc) ->
-                collect_version_files(PlatformDir, Version, Acc, CollectFun)
-            end, Init, Versions);
+            {ok, Directories} = file:list_dir(PlatformDir),
+            SortedDirs = lists:sort(Directories),
+            VersionFolders = select_overlay_folders(Version, SortedDirs, []),
+            lists:foldl(fun(VersionFolder, Acc) ->
+                collect_version_files(PlatformDir, VersionFolder, Acc, CollectFun)
+            end, Init, VersionFolders);
         false ->
             Init
     end.
+
+select_overlay_folders(_, [], Selected) ->
+    Selected;
+select_overlay_folders({V, _Pre, _Build, Full} = Version, [D|Dirs], Selected) ->
+    FN = [list_to_integer(N) || N <- string:split(D, "." , all), N =/= "common"],
+    case D =:= "common" orelse D =:= Full orelse is_elegible_version(FN, V) of
+        true -> select_overlay_folders(Version, Dirs, [D | Selected]);
+        false -> select_overlay_folders(Version, Dirs, Selected)
+    end.
+
+% An elegible folder must have the same major version number
+is_elegible_version([Major|DTail], [Major|VTail]) -> 
+    is_inferior_subversion(DTail, VTail);
+is_elegible_version(_, _) -> false.
+
+is_inferior_subversion([], _) -> true;
+is_inferior_subversion([DN|DTail], [VN|VTail]) when DN =:= VN -> 
+    is_inferior_subversion(DTail, VTail);
+is_inferior_subversion([DN|_], [VN|_]) when DN =< VN -> 
+    true;
+is_inferior_subversion(_, _) -> false.
 
 merge_build_config(C1, C2) ->
     mapz:deep_merge(C1, C2).
@@ -504,8 +528,8 @@ format_hash(sha256, <<Int:256/big-unsigned-integer>>) -> format_hash(Int).
 format_hash(Int) when is_integer(Int) ->
     list_to_binary(io_lib:format("~.16b", [Int])).
 
-collect_version_files(PlatformDir, Version, Acc, CollectFun) ->
-    RootDir = filename:join(PlatformDir, Version),
+collect_version_files(PlatformDir, VersionFolder, Acc, CollectFun) ->
+    RootDir = filename:join(PlatformDir, VersionFolder),
     case filelib:is_dir(RootDir) of
         true -> CollectFun(RootDir, Acc);
         false -> Acc
@@ -529,7 +553,7 @@ collect_build_hooks(App, Root, State0) ->
         Prefix = hook_prefix(Hook),
         Info = file_info(Hook, App, filename:join(Dir, Hook)),
         mapz:deep_put([hooks, Prefix, Hook], Info, State1)
-    end, State0, filelib:wildcard("*", binary_to_list(Dir))).
+    end, State0, filelib:wildcard("*", Dir)).
 
 hook_prefix("post-install" ++ _) -> post_install;
 hook_prefix(Hook) -> error({unknown_hook_prefix, Hook}).
@@ -555,7 +579,7 @@ collect_file_list(App, Dir, Root) ->
         ),
         A#{Target => file_info(Target, App, Source, Target)}
     end,
-    lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
+    lists:foldl(InsertFile, #{}, filelib:wildcard("*", Dir)).
 
 collect_file_tree(App, Root) ->
     filelib:fold_files(Root, ".*", true, fun(File, T) ->
