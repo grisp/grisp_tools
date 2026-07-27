@@ -8,6 +8,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-07-27
+
+### Added
+
+- Add zizmor CI scanning for GitHub Actions workflows.
+
+### Changed
+
+- Select overlay folders from available platform directories based on the
+  resolved OTP version instead of deriving a fixed version list.
+
+### Removed
+
+- Remove broken README badge.
+
 ## [2.8.2] - 2026-02-20
 
 ### Changed
@@ -216,7 +231,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.8.2...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.0...HEAD
+[2.9.0]: https://github.com/grisp/grisp_tools/compare/2.8.2...2.9.0
 [2.8.2]: https://github.com/grisp/grisp_tools/compare/2.8.1...2.8.2
 [2.8.1]: https://github.com/grisp/grisp_tools/compare/2.8.0...2.8.1
 [2.8.0]: https://github.com/grisp/grisp_tools/compare/2.7.1...2.8.0
