@@ -197,23 +197,38 @@ collect_overlay(Dir, Platform, Version, Init, CollectFun) ->
     case filelib:is_dir(PlatformDir) of
         true ->
             {ok, Directories} = file:list_dir(PlatformDir),
-            SortedDirs = lists:sort(Directories),
-            VersionFolders = select_overlay_folders(Version, SortedDirs, []),
+            VersionDirs = filter_otp_version_directories(Directories),
+            SortedDirs = lists:sort(VersionDirs),
+            SelectedDirs = select_overlay_folders(Version, SortedDirs, []),
+            OverlayDirs = ["common" | SelectedDirs],
             lists:foldl(fun(VersionFolder, Acc) ->
                 collect_version_files(PlatformDir, VersionFolder, Acc, CollectFun)
-            end, Init, VersionFolders);
+            end, Init, OverlayDirs);
         false ->
             Init
     end.
 
+filter_otp_version_directories(Directories) ->
+    lists:filter(fun is_otp_version_directory/1, Directories).
+
+is_otp_version_directory(Directory) ->
+    Pattern = "^[0-9]+(?:\\.[0-9]+){0,4}"
+              "(?:-[^+\\s]+)?(?:\\+[^\\s]+)?$",
+    re:run(Directory, Pattern, [{capture, none}]) =:= match.
+
 select_overlay_folders(_, [], Selected) ->
-    Selected;
+    lists:sort(Selected);
 select_overlay_folders({V, _Pre, _Build, Full} = Version, [D|Dirs], Selected) ->
-    FN = [list_to_integer(N) || N <- string:split(D, "." , all), N =/= "common"],
-    case D =:= "common" orelse D =:= Full orelse is_elegible_version(FN, V) of
+    FN = otp_version_components(D),
+    FullName = unicode:characters_to_list(Full),
+    case D =:= FullName orelse is_elegible_version(FN, V) of
         true -> select_overlay_folders(Version, Dirs, [D | Selected]);
         false -> select_overlay_folders(Version, Dirs, Selected)
     end.
+
+otp_version_components(Directory) ->
+    [Version | _] = re:split(Directory, "[-+]", [{return, list}]),
+    [list_to_integer(N) || N <- string:split(Version, ".", all)].
 
 % An elegible folder must have the same major version number
 is_elegible_version([Major|DTail], [Major|VTail]) -> 
