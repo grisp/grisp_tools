@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-07-29
+
+### Fixed
+
+- Fix overlay assembly ordering [#46](https://github.com/grisp/grisp_tools/pull/46)
+
 ## [2.9.0] - 2026-07-27
 
 ### Added
@@ -231,7 +237,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.1...HEAD
+[2.9.1]: https://github.com/grisp/grisp_tools/compare/2.9.0...2.9.1
 [2.9.0]: https://github.com/grisp/grisp_tools/compare/2.8.2...2.9.0
 [2.8.2]: https://github.com/grisp/grisp_tools/compare/2.8.1...2.8.2
 [2.8.1]: https://github.com/grisp/grisp_tools/compare/2.8.0...2.8.1
