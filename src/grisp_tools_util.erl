@@ -197,10 +197,11 @@ collect_overlay(Dir, Platform, Version, Init, CollectFun) ->
     case filelib:is_dir(PlatformDir) of
         true ->
             {ok, Directories} = file:list_dir(PlatformDir),
-            VersionDirs = filter_otp_version_directories(Directories),
+            BinaryDirs = [list_to_binary(D) || D <- Directories],
+            VersionDirs = filter_otp_version_directories(BinaryDirs),
             SortedDirs = lists:sort(VersionDirs),
             SelectedDirs = select_overlay_folders(Version, SortedDirs, []),
-            OverlayDirs = ["common" | SelectedDirs],
+            OverlayDirs = [<<"common">> | SelectedDirs],
             lists:foldl(fun(VersionFolder, Acc) ->
                 collect_version_files(PlatformDir, VersionFolder, Acc, CollectFun)
             end, Init, OverlayDirs);
@@ -568,7 +569,7 @@ collect_build_hooks(App, Root, State0) ->
         Prefix = hook_prefix(Hook),
         Info = file_info(Hook, App, filename:join(Dir, Hook)),
         mapz:deep_put([hooks, Prefix, Hook], Info, State1)
-    end, State0, filelib:wildcard("*", Dir)).
+    end, State0, filelib:wildcard("*", binary_to_list(Dir))).
 
 hook_prefix("post-install" ++ _) -> post_install;
 hook_prefix(Hook) -> error({unknown_hook_prefix, Hook}).
@@ -594,7 +595,7 @@ collect_file_list(App, Dir, Root) ->
         ),
         A#{Target => file_info(Target, App, Source, Target)}
     end,
-    lists:foldl(InsertFile, #{}, filelib:wildcard("*", Dir)).
+    lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
 
 collect_file_tree(App, Root) ->
     filelib:fold_files(Root, ".*", true, fun(File, T) ->
