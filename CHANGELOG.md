@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.9.2] - 2026-07-31
+
+### Fixed
+
+- Hotfix for template resolution bug [#47](https://github.com/grisp/grisp_tools/pull/47)
+
 ## [2.9.1] - 2026-07-29
 
 ### Fixed
@@ -237,7 +243,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.2...HEAD
+[2.9.2]: https://github.com/grisp/grisp_tools/compare/2.9.1...2.9.2
 [2.9.1]: https://github.com/grisp/grisp_tools/compare/2.9.0...2.9.1
 [2.9.0]: https://github.com/grisp/grisp_tools/compare/2.8.2...2.9.0
 [2.8.2]: https://github.com/grisp/grisp_tools/compare/2.8.1...2.8.2
