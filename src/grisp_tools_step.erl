@@ -237,9 +237,11 @@ collect_platform_files(Platform, #{sorted_apps := Apps} = State) ->
         collect_app_files(App, Platform, S)
     end, State, Apps).
 
-collect_app_files(App, Platform, #{apps := Apps, otp_version := Version} = S0) ->
+collect_app_files(App, Platform, #{apps := Apps,
+                                   otp_version := Version,
+                                   jit := Jit} = S0) ->
     Dir = mapz:deep_get([App, dir], Apps),
-    {BuildOverlay, Config} = grisp_tools_util:build_overlay(App, Dir, Platform, Version),
+    {BuildOverlay, Config} = grisp_tools_util:build_overlay(App, Dir, Platform, Jit, Version),
     S1 = mapz:deep_merge(S0, #{build => #{overlay => BuildOverlay}}),
     DeployOverlay = grisp_tools_util:deploy_overlay(App, Dir, Platform, Version),
     S2 = mapz:deep_merge(S1, #{deploy => #{overlay => DeployOverlay}}),
