@@ -22,7 +22,7 @@
 -export([ensure_dir/1]).
 -export([mv/2]).
 -export([rm/1]).
--export([build_overlay/4]).
+-export([build_overlay/5]).
 -export([deploy_overlay/4]).
 -export([build_hash/1]).
 -export([build_hash_format/1]).
@@ -171,12 +171,12 @@ rm(File) ->
         Error           -> error({delete_file_failed, File, Error})
     end.
 
-build_overlay(App, AppDir, Platform, Version) ->
+build_overlay(App, AppDir, Platform, Jit, Version) ->
     collect_overlay(AppDir, Platform, Version, {#{}, #{}}, fun(Dir, {Files, Config}) ->
         BuildDir = filename:join(Dir, build),
         NewFiles = mapz:deep_merge(Files, pipe(Files, [
             fun(S) -> collect_build_files(App, BuildDir, S) end,
-            fun(S) -> collect_build_patches(App, BuildDir, S) end,
+            fun(S) -> collect_build_patches(App, BuildDir, Jit, S) end,
             fun(S) -> collect_build_drivers(App, BuildDir, S) end,
             fun(S) -> collect_build_nifs(App, BuildDir, S) end,
             fun(S) -> collect_build_hooks(App, BuildDir, S) end
@@ -554,8 +554,13 @@ collect_version_files(PlatformDir, VersionFolder, Acc, CollectFun) ->
 collect_build_files(App, Dir, State) ->
     State#{files => collect_file_tree(App, filename:join(Dir, "files"))}.
 
-collect_build_patches(App, Dir, State) ->
-    State#{patches => collect_file_list(App, filename:join(Dir, "patches"))}.
+collect_build_patches(App, Dir, Jit, OverlayState) when Jit =:= true ->
+    OverlayState#{patches => mapz:deep_merge(
+        collect_file_list(App, filename:join(Dir, "patches")),
+        collect_file_list(App, filename:join([Dir, "patches", "jit"]))
+    )};
+collect_build_patches(App, Dir, Jit, OverlayState) when Jit =:= false ->
+    OverlayState#{patches => collect_file_list(App, filename:join(Dir, "patches"))}.
 
 collect_build_drivers(App, Dir, State) ->
     State#{drivers => collect_file_list(App, filename:join(Dir, "drivers"), "erts/emulator/drivers/unix")}.
@@ -587,13 +592,19 @@ collect_build_config(_App, Dir, Acc) ->
 collect_file_list(App, Dir) -> collect_file_list(App, Dir, "").
 
 collect_file_list(App, Dir, Root) ->
-    InsertFile = fun(Match, A) ->
-        File = list_to_binary(Match),
+    DoInsertFile = fun(Filename, Map) ->
+        File = list_to_binary(Filename),
         {Source, Target} = check_template(
             filename:join(Dir, File),
             string:trim(filename:join(Root, File), both, "/")
         ),
-        A#{Target => file_info(Target, App, Source, Target)}
+        Map#{Target => file_info(Target, App, Source, Target)}
+    end,
+    InsertFile = fun(Match, A) ->
+        case filelib:is_dir(filename:join(Dir, Match)) of
+          true -> A;
+          false ->  DoInsertFile(Match, A)
+        end
     end,
     lists:foldl(InsertFile, #{}, filelib:wildcard("*", binary_to_list(Dir))).
 
