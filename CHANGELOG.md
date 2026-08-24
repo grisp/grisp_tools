@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-08-24
+
+### Added
+
+- Support the `jit` OTP build option and apply patches from the `patches/jit`
+  overlay subdirectory when enabled [#48](https://github.com/grisp/grisp_tools/pull/48)
+
 ## [2.9.2] - 2026-07-31
 
 ### Fixed
@@ -243,7 +250,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.9.2...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.10.0...HEAD
+[2.10.0]: https://github.com/grisp/grisp_tools/compare/2.9.2...2.10.0
 [2.9.2]: https://github.com/grisp/grisp_tools/compare/2.9.1...2.9.2
 [2.9.1]: https://github.com/grisp/grisp_tools/compare/2.9.0...2.9.1
 [2.9.0]: https://github.com/grisp/grisp_tools/compare/2.8.2...2.9.0
