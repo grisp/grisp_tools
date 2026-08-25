@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-08-25
+
+### Added
+
+- New `jit` option to the `configure` utility, enabling generated GRiSP
+  projects to select whether Arm32 JIT patches are applied
+  [#49](https://github.com/grisp/grisp_tools/pull/49)
+
 ## [2.10.0] - 2026-08-24
 
 ### Added
@@ -250,7 +258,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.10.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.10.1...HEAD
+[2.10.1]: https://github.com/grisp/grisp_tools/compare/2.10.0...2.10.1
 [2.10.0]: https://github.com/grisp/grisp_tools/compare/2.9.2...2.10.0
 [2.9.2]: https://github.com/grisp/grisp_tools/compare/2.9.1...2.9.2
 [2.9.1]: https://github.com/grisp/grisp_tools/compare/2.9.0...2.9.1
