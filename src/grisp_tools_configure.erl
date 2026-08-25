@@ -134,6 +134,10 @@ settings_options() ->
               type = string, default = "28",
               description = "The OTP version of the GRiSP app",
               hint = "Specify the Erlang version to use"},
+     #set_opts{prompt = "Enable the Arm32-JIT", long = jit, short = $j,
+              type = boolean, default = true,
+              description = "Applies jit patches to OTP if available",
+              hint = "Has effect only if jit patches are available for you selected OTP version"},
      #set_opts{prompt = "SD Card path", long = dest, short = $d, type = string,
               default = "/path/to/SD-card",
               description = "The path to the SD card where you want to deploy "
