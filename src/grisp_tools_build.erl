@@ -299,21 +299,30 @@ apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
     Context = mapz:deep_get([build, context], State0),
     grisp_tools_util:copy_file(Dir, Patch, Context),
-    State4 = case shell(State0,
-                ["git apply ", grisp_tools_util:shell_quote(Name),
-                 " --ignore-whitespace --reverse --check"],
-                [{cd, Dir}, return_on_error]) of
+    PatchFile = grisp_tools_util:shell_quote(Name),
+    PatchCmd = [
+        "patch --strip=1 --batch --ignore-whitespace ",
+        "--no-backup-if-mismatch --input=", PatchFile
+    ],
+    State4 = case shell(State0, [PatchCmd, " --reverse --force --dry-run"],
+                                [{cd, Dir}, return_on_error]) of
         {{ok, _Output}, State1} ->
             event(State1, [{skip, Patch}]);
         {{error, {1, _}}, State1} ->
             State2 = event(State1, [{apply, Patch}]),
-            {{ok, _}, State3} = shell(State2,
-                                      ["git apply --ignore-whitespace ",
-                                       grisp_tools_util:shell_quote(Name)],
-                                      [{cd, Dir}]),
-            State3
+            {{ok, _}, State3} = shell(
+                State2,
+                [PatchCmd, " --forward --dry-run"],
+                [{cd, Dir}]
+            ),
+            {{ok, _}, State4Applied} = shell(
+                State3,
+                [PatchCmd, " --forward"],
+                [{cd, Dir}]
+            ),
+            State4Applied
     end,
-    {{ok, _}, State5} = shell(State4, ["rm ", grisp_tools_util:shell_quote(Name)],
+    {{ok, _}, State5} = shell(State4, ["rm ", PatchFile],
                               [{cd, Dir}]),
     State5.
 
