@@ -17,31 +17,26 @@ list(#{type := Type, source := Source}) ->
 %--- Internal ------------------------------------------------------------------
 
 list_bucket(Type, Root) ->
-    Bucket = <<"grisp.s3.amazonaws.com">>,
-    Client = case hackney:connect(hackney_ssl, Bucket, 443, [with_body]) of
-        {ok, C} -> C;
-        {error, Reason} -> error({connection_error, Reason})
-    end,
+    Bucket = <<"https://grisp.s3.amazonaws.com">>,
     Prefix = iolist_to_binary([Root, $/, atom_to_binary(Type), $/]),
-    list_bucket(Client, Type, [<<"https://">>, Bucket], Prefix, undefined, []).
+    list_bucket(Type, Bucket, Prefix, undefined, []).
 
-list_bucket(Client, Type, Bucket, Prefix, Token, Items) ->
+list_bucket(Type, Bucket, Prefix, Token, Items) ->
     TokenQS = [{<<"continuation-token">>, Token} || Token =/= undefined],
-    URL = hackney_url:make_url(<<>>, <<"">>, [
+    URL = hackney_url:make_url(Bucket, <<>>, [
         {<<"list-type">>, <<"2">>},
         {<<"max-keys">>, <<"100">>},
         {<<"prefix">>, Prefix}
     ] ++ TokenQS),
-    Body = request(Client, URL),
+    Body = request(URL),
     XML = decode(Body),
     Contents = xpath(XML, "/ListBucketResult/Contents"),
-    Files = files(simplify(Contents), Bucket, Client),
+    Files = files(simplify(Contents), Bucket),
     case continue(XML) of
         eof ->
-            hackney:close(Client),
             Files ++ Items;
         {continue, NewToken} ->
-            list_bucket(Client, Type, Bucket, Prefix, NewToken, Files ++ Items)
+            list_bucket(Type, Bucket, Prefix, NewToken, Files ++ Items)
     end.
 
 continue(Response) ->
@@ -61,8 +56,8 @@ simplify(XML) -> xmerl_lib:simplify_element(XML).
 
 xpath(Element, Path) -> xmerl_xpath:string(Path, Element).
 
-files(Contents, Bucket, Client) ->
-    Opts = #{bucket => Bucket, client => Client},
+files(Contents, Bucket) ->
+    Opts = #{bucket => Bucket},
     lists:foldl(fun({'Contents', _, Content}, Files) ->
         try
             [file(Content, Opts)|Files]
@@ -78,7 +73,7 @@ file(Content, Opts) ->
         Content
     ).
 
-file_attr({'Key', _, [Key]}, File, #{bucket := Bucket, client := Client}) ->
+file_attr({'Key', _, [Key]}, File, #{bucket := Bucket}) ->
     case lists:last(Key) of
         $/ ->
             throw(skip);
@@ -86,7 +81,7 @@ file_attr({'Key', _, [Key]}, File, #{bucket := Bucket, client := Client}) ->
             URL = iolist_to_binary([Bucket, $/, Key]),
             Extra = case string:slice(Key, max(0, length(Key) - 6)) of
                 "LATEST" ->
-                    #{latest => string:trim(request(Client, URL))};
+                    #{latest => string:trim(request(URL))};
                 _ -> #{}
             end,
             maps:merge(
@@ -107,9 +102,8 @@ file_attr({'Size', _, [SSize]}, File, _Opts) ->
 file_attr(_, File, _Opts) ->
     File.
 
-request(Client, URL) ->
-    Request = {get, URL, [], <<>>},
-    {ok, 200, _Headers, Body} = hackney:send_request(Client, Request),
+request(URL) ->
+    {ok, 200, _Headers, Body} = hackney:get(URL),
     Body.
 
 parse(otp, Files) -> parse_otp(Files);
