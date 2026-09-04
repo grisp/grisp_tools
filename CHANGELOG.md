@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-09-04
+
+### Changed
+
+- Upgrade Hackney to version 4.7.4 and adapt package downloads to its updated
+  request API
+
 ## [2.11.0] - 2026-09-02
 
 ### Changed
@@ -265,7 +272,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.1...HEAD
+[2.11.1]: https://github.com/grisp/grisp_tools/compare/2.11.0...2.11.1
 [2.11.0]: https://github.com/grisp/grisp_tools/compare/2.10.1...2.11.0
 [2.10.1]: https://github.com/grisp/grisp_tools/compare/2.10.0...2.10.1
 [2.10.0]: https://github.com/grisp/grisp_tools/compare/2.9.2...2.10.0
