@@ -207,12 +207,15 @@ install(S0) ->
     BuildPath = mapz:deep_get([paths, build], S0),
     InstallPath = mapz:deep_get([paths, install], S0),
 
-    grisp_tools_util:ensure_dir(filename:join(InstallPath, ".")),
     S1 = grisp_tools_util:pipe(S0, [
         fun(S) -> shell_ok(S,
                            ["rm -rf ",
-                            grisp_tools_util:shell_quote(InstallPath), "/*"],
-                           [{cd, InstallPath}]) end,
+                            grisp_tools_util:shell_quote(InstallPath)],
+                           []) end,
+        fun(S) ->
+            grisp_tools_util:ensure_dir(filename:join(InstallPath, ".")),
+            S
+        end,
         fun(S) -> shell_ok(S,
                            ["make install DESTDIR=",
                             grisp_tools_util:shell_quote(InstallPath)],
