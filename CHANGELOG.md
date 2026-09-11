@@ -8,6 +8,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.11.3] - 2026-09-11
+
+### Fixed
+
+- Copy the project settings selected by the calling integration when generating
+  a report. This lets Mix projects include `mix.exs` and `mix.lock`, rather
+  than Rebar-specific files.
+
+### Removed
+
+- Remove the unused `grisp_tools_util:source_hash/2` API.
+
 ## [2.11.2] - 2026-09-08
 
 ### Fixed
@@ -280,7 +292,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.2...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.3...HEAD
+[2.11.3]: https://github.com/grisp/grisp_tools/compare/2.11.2...2.11.3
 [2.11.2]: https://github.com/grisp/grisp_tools/compare/2.11.1...2.11.2
 [2.11.1]: https://github.com/grisp/grisp_tools/compare/2.11.0...2.11.1
 [2.11.0]: https://github.com/grisp/grisp_tools/compare/2.10.1...2.11.0
