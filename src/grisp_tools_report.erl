@@ -66,9 +66,8 @@ tar(#{report_dir := ReportDir, flags := #{tar := true}} = S0) ->
 
 %--- Internal ------------------------------------------------------------------
 
-project_settings(S0) ->
-    S1 = copy_project_file("rebar.config", S0),
-    copy_project_file("rebar.lock", S1).
+project_settings(#{project_settings := Files} = S0) ->
+    lists:foldl(fun copy_project_file/2, S0, Files).
 
 hash_index(#{
     report_dir := ReportDir,
