@@ -36,3 +36,6 @@ jobs:
 
       - name: Compile
         run: rebar3 do clean, compile
+
+      - name: Dialyzer
+        run: rebar3 dialyzer
