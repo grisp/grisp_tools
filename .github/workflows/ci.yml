@@ -11,7 +11,7 @@ jobs:
     name: Erlang ${{matrix.otp}} / rebar ${{matrix.rebar3}}
     strategy:
       matrix:
-        otp: ['27', '28', '29']
+        otp: ['28', '29']
         rebar3: ['3']
     steps:
 
@@ -36,3 +36,6 @@ jobs:
 
       - name: Compile
         run: rebar3 do clean, compile
+
+      - name: Dialyzer
+        run: rebar3 dialyzer

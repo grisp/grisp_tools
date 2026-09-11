@@ -27,7 +27,6 @@
 -export([build_hash/1]).
 -export([build_hash_format/1]).
 -export([merge_build_config/2]).
--export([source_hash/2]).
 -export([copy_directory/4, copy_directory/5]).
 -export([copy_file/3, copy_file/4]).
 -export([write_file/3, write_file/4]).
@@ -221,8 +220,7 @@ select_overlay_folders(_, [], Selected) ->
     lists:sort(Selected);
 select_overlay_folders({V, _Pre, _Build, Full} = Version, [D|Dirs], Selected) ->
     FN = otp_version_components(D),
-    FullName = unicode:characters_to_list(Full),
-    case D =:= FullName orelse is_elegible_version(FN, V) of
+    case D =:= Full orelse is_elegible_version(FN, V) of
         true -> select_overlay_folders(Version, Dirs, [D | Selected]);
         false -> select_overlay_folders(Version, Dirs, Selected)
     end.
@@ -271,18 +269,6 @@ build_hash(#{build := #{overlay := Overlay}}) ->
 
 build_hash_format(Index) ->
     [io_lib:format("~s ~s~n", [File, Hash]) || {File, Hash} <- Index].
-
-source_files(Apps, Board) ->
-    lists:foldl(fun({_App, #{dir := Dir}}, {Sys, Drivers, NIFs}) ->
-        {AppSys, AppDrivers, AppNIFs} = collect_c_sources(Dir, Board),
-        {maps:merge(Sys, AppSys), maps:merge(Drivers, AppDrivers), maps:merge(NIFs, AppNIFs)}
-    end, {#{}, #{}, #{}}, Apps).
-
-source_hash(Apps, Board) ->
-    {DriverFiles, SystemFiles, NIFFiles} = source_files(Apps, Board),
-    Targets = maps:merge(DriverFiles, SystemFiles),
-    Targets2 = maps:merge(Targets, NIFFiles),
-    hash_files(Targets2).
 
 copy_directory(State0, Src, DestRoot, DestRel) ->
     recursive_copy(State0, Src, DestRoot, DestRel, [], #{}).
@@ -468,64 +454,6 @@ sub_paths(Dir, Platform) ->
     }.
 
 cache() -> filename:basedir(user_cache, "grisp").
-
-collect_c_sources(Dir, Board) ->
-    Source = filename:join([Dir, "grisp", Board]),
-    case filelib:is_dir(Source) of
-        true  -> {collect_sys(Source), collect_drivers(Source), collect_nifs(Source)};
-        false -> {#{}, #{}, #{}}
-    end.
-
-collect_sys(Source) ->
-    maps:merge(
-        collect_files({Source, "sys/*.h"}, "erts/emulator/sys/unix"),
-        collect_files({Source, "sys/*.c"}, "erts/emulator/sys/unix")
-    ).
-
-collect_drivers(Source) ->
-    maps:merge(
-        collect_files(
-            {Source, "drivers/*.h"},
-            "erts/emulator/drivers/unix"
-        ),
-        collect_files(
-            {Source, "drivers/*.c"},
-            "erts/emulator/drivers/unix"
-        )
-    ).
-
-collect_nifs(Source) ->
-    maps:merge(
-      collect_files(
-        {Source, "nifs/*.h"},
-        "erts/emulator/nifs/common"
-       ),
-      collect_files(
-        {Source, "nifs/*.c"},
-        "erts/emulator/nifs/common"
-       )
-     ).
-
-collect_files({SourceRoot, Pattern}, Target) ->
-    Files = filelib:wildcard(filename:join(SourceRoot, Pattern)),
-    lists:foldl(fun(File, Collected) ->
-        TargetFile = filename:join([Target, filename:basename(File)]),
-        Collected#{TargetFile => File}
-    end, #{}, Files).
-
-hash_files(Targets) ->
-    Sorted = lists:keysort(1, maps:to_list(Targets)),
-    FileHashes = lists:map(fun({Target, Source}) ->
-        {ok, Hash} = hash_file(Source, sha256),
-        {Target, Hash}
-    end, Sorted),
-
-    HashIndex = lists:map(fun({Target, Hash}) ->
-        io_lib:format("~s ~s~n", [Target, format_hash(sha256, Hash)]) end,
-    FileHashes),
-
-    TopHash = format_hash(sha256, crypto:hash(sha256, HashIndex)),
-    {TopHash, HashIndex}.
 
 hash_file(File, Algorithm) ->
     Context = crypto:hash_init(Algorithm),

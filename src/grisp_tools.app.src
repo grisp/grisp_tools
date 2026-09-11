@@ -7,9 +7,12 @@
         stdlib,
         ssl,
         inets,
+        xmerl,
         bbmustache,
         mapz,
-        hackney
+        hackney,
+        edifa,
+        grisp_update_packager
     ]},
     {env, [
         {cdn, "https://s3.amazonaws.com/grisp"},

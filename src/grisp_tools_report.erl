@@ -7,7 +7,7 @@
 -import(grisp_tools_util, [shell/2]).
 -import(grisp_tools_util, [shell/3]).
 -import(grisp_tools_util, [ensure_dir/1]).
--import(grisp_tools_util, [write_file/3]).
+-import(grisp_tools_util, [copy_file/3]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ copy_project_file(Filename, #{project_root := Root,
     Dst = filename:join(ReportDir, Filename),
     Copy = #{source => Src, target => Dst},
     try
-            write_file(Root, Copy, #{}),
+            copy_file(Root, Copy, #{}),
             event(S0, [files, {copy, Dst}])
         catch error:_ ->
             event(S0, [files, {missing, Src}])
