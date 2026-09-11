@@ -11,7 +11,7 @@
                    type              :: setting_type(),
                    default = none    :: none | string() | boolean(),
                    description       :: string(),
-                   dep_setting_fun   :: function(),
+                   dep_setting_fun = undefined :: function() | undefined,
                    hint  = ""        :: string()}).
 
 %--- Types ---------------------------------------------------------------------
@@ -20,7 +20,6 @@
 % @doc {Long, Short, Type, Default, Descr}
 -type setting() :: {atom(),
                     char() | undefined,
-                    string(),
                     {setting_type(), string() | boolean()},
                     string()}.
 
@@ -86,7 +85,7 @@ user_provided_event(State, Key, UserOpts) ->
 -spec validate_user_choice(State, Setting) -> {ok, State} | {error, Error} when
       State   :: map(),
       Setting :: atom(),
-      Error   :: atom().
+      Error   :: string().
 validate_user_choice(State, name) ->
     {ok, Cwd} = file:get_cwd(),
     #{flags := #{name := ProjectName, interactive := Interactive}} = State,
@@ -191,7 +190,7 @@ epmd_options() -> [
              default = "grisp", description = "The distributed Erlang cookie",
              hint = "Cookie is necessary for remote shell."}].
 
--spec format_settings_options([set_opts()], [setting()]) -> setting().
+-spec format_settings_options([set_opts()], [setting()]) -> [setting()].
 format_settings_options([], Acc) ->
     Acc;
 format_settings_options([#set_opts{dep_setting_fun = undefined} = O |T], Acc) ->
@@ -213,21 +212,19 @@ format_settings_options([SetOpts | Tail], Acc) ->
 
 default_author_and_email() ->
     %% See if we can get a git user and email to use as defaults
-    case rebar_utils:sh("git config --global user.name", [return_on_error]) of
+    case command("git config --global user.name") of
         {ok, Name} ->
-            case rebar_utils:sh("git config --global user.email",
-                                [return_on_error]) of
+            case command("git config --global user.email") of
                 {ok, Email} ->
-                    {rebar_string:trim(Name, both, "\n"),
-                     rebar_string:trim(Email, both, "\n")};
+                    {string:trim(Name, both, "\n"),
+                     string:trim(Email, both, "\n")};
                 {error, _} ->
                     %% Use neither if one doesn't exist
                     {"Anonymous", "anonymous@example.org"}
             end;
         {error, _} ->
             %% Ok, try mecurial
-            case rebar_utils:sh("hg showconfig ui.username",
-                                [return_on_error]) of
+            case command("hg showconfig ui.username") of
                 {ok, NameEmail} ->
                     case re:run(NameEmail, "^(.*) <(.*)>$",
                                 [{capture, [1, 2], list}, unicode]) of
@@ -239,4 +236,12 @@ default_author_and_email() ->
                 {error, _} ->
                     {"Anonymous", "anonymous@example.org"}
             end
+    end.
+
+command(Command) ->
+    try os:cmd(Command, #{exception_on_failure => true}) of
+        Output -> {ok, Output}
+    catch
+        error:{command_failed, _Output, _ExitStatus} ->
+            {error, command_failed}
     end.

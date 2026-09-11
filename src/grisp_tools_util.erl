@@ -221,8 +221,7 @@ select_overlay_folders(_, [], Selected) ->
     lists:sort(Selected);
 select_overlay_folders({V, _Pre, _Build, Full} = Version, [D|Dirs], Selected) ->
     FN = otp_version_components(D),
-    FullName = unicode:characters_to_list(Full),
-    case D =:= FullName orelse is_elegible_version(FN, V) of
+    case D =:= Full orelse is_elegible_version(FN, V) of
         true -> select_overlay_folders(Version, Dirs, [D | Selected]);
         false -> select_overlay_folders(Version, Dirs, Selected)
     end.

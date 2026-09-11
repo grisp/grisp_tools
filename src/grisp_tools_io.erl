@@ -102,8 +102,7 @@ get(trim_string, []) ->
 get(trim_string, String) ->
     case is_list(String) of
         true ->
-            Whitespace = unicode_util:whitespace(),
-            Trimmed = string:trim(String, both, Whitespace ++ [$"]),
+            Trimmed = string:trim(String, both, unicode_whitespace() ++ [$"]),
             unicode:characters_to_binary(Trimmed);
         false ->
             no_clue
@@ -118,14 +117,14 @@ get(string, String) ->
             no_clue
     end.
 
--ifdef(unicode_str).
-trim(Str, right, Chars) -> string:trim(Str, trailing, Chars);
-trim(Str, left, Chars) -> string:trim(Str, leading, Chars);
-trim(Str, both, Chars) -> string:trim(Str, both, Chars).
--else.
-trim(Str) -> string:strip(rebar_utils:to_list(Str)).
-trim(Str, Dir, [Chars|_]) -> string:strip(rebar_utils:to_list(Str), Dir, Chars).
--endif.
+trim(Str) -> string:trim(unicode:characters_to_list(Str)).
+trim(Str, both, Chars) -> string:trim(unicode:characters_to_list(Str), both, Chars).
+
+unicode_whitespace() ->
+    [$\t, $\n, $\v, $\f, $\r, $\s, 16#85, 16#A0, 16#1680,
+     16#2000, 16#2001, 16#2002, 16#2003, 16#2004, 16#2005, 16#2006,
+     16#2007, 16#2008, 16#2009, 16#200A, 16#2028, 16#2029, 16#202F,
+     16#205F, 16#3000].
 
 say(State, Say) ->
     Event = {say, Say},

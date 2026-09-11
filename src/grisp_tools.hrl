@@ -14,6 +14,8 @@
         #{role => system, type => fat32, size => ?GRISP2_SYSTEM_SIZE, start => ?GRISP2_RESERVED_SIZE},
         #{role => system, type => fat32, size => ?GRISP2_SYSTEM_SIZE}
 ]).
+-define(GRISP2_EDIFA_PARTITIONS,
+        [maps:without([role], Partition) || Partition <- ?GRISP2_PARTITIONS]).
 -define(GRISP2_FAT_TYPE, 32).
 -define(GRISP2_FAT_CLUSTER_SIZE, 4).
 

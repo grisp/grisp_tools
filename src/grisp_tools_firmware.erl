@@ -172,7 +172,7 @@ copy_bootloader(State = #{edifa_pid := Pid, bootloader := BootFile}) ->
 
 create_partitions(State = #{edifa_pid := Pid}) ->
     Opts = edifa_opts(State),
-    case edifa:partition(Pid, mbr, ?GRISP2_PARTITIONS, Opts) of
+    case edifa:partition(Pid, mbr, ?GRISP2_EDIFA_PARTITIONS, Opts) of
         {ok, [_, _] = Partitions, State2} ->
             State2#{partitions => Partitions};
         {error, Reason, State2} ->
@@ -265,7 +265,10 @@ if_key_defined(State, Key, Result, Default) ->
     end.
 
 edifa_opts(State) ->
-    edifa_opts(State, #{}).
+    #{
+        log_handler => fun edifa_log_hanler/2,
+        log_state => State
+    }.
 
 edifa_opts(State, Opts) ->
     Opts#{
