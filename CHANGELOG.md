@@ -18,7 +18,7 @@ and this project adheres to
 
 ### Removed
 
-- Remove the unused `grisp_tools_util:source_hash/2` API.
+- Remove the unused source hash helper API.
 
 ## [2.11.2] - 2026-09-08
 
