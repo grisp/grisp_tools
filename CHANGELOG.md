@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.11.5] - 2026-10-26
+
+### Changed
+
+- Upgrade Hackney to 4.9.1, which supports certifi 2.18.0 and fixes pooled
+  HTTP/1.1 connection races.
+
 ## [2.11.4] - 2026-10-26
 
 ### Security
@@ -298,7 +305,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.4...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.5...HEAD
+[2.11.5]: https://github.com/grisp/grisp_tools/compare/2.11.4...2.11.5
 [2.11.4]: https://github.com/grisp/grisp_tools/compare/2.11.3...2.11.4
 [2.11.3]: https://github.com/grisp/grisp_tools/compare/2.11.2...2.11.3
 [2.11.2]: https://github.com/grisp/grisp_tools/compare/2.11.1...2.11.2
