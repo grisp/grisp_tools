@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.11.4] - 2026-10-26
+
+### Security
+
+- Upgrade certifi to 2.18.0 to remove compromised emSign root certificates.
+
 ## [2.11.3] - 2026-09-11
 
 ### Fixed
@@ -292,7 +298,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.3...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.4...HEAD
+[2.11.4]: https://github.com/grisp/grisp_tools/compare/2.11.3...2.11.4
 [2.11.3]: https://github.com/grisp/grisp_tools/compare/2.11.2...2.11.3
 [2.11.2]: https://github.com/grisp/grisp_tools/compare/2.11.1...2.11.2
 [2.11.1]: https://github.com/grisp/grisp_tools/compare/2.11.0...2.11.1
