@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Security
+
+- Require Hackney 4.9.0 or later to prevent resolving a vulnerable release.
+
 ## [2.11.5] - 2026-10-26
 
 ### Changed
