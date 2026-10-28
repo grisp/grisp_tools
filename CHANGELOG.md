@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.11.6] - 2026-10-28
+
+### Changed
+
+- Upgrade edifa to 1.0.1.
+
 ## [2.11.5] - 2026-10-26
 
 ### Changed
@@ -305,7 +311,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.5...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.6...HEAD
+[2.11.6]: https://github.com/grisp/grisp_tools/compare/2.11.5...2.11.6
 [2.11.5]: https://github.com/grisp/grisp_tools/compare/2.11.4...2.11.5
 [2.11.4]: https://github.com/grisp/grisp_tools/compare/2.11.3...2.11.4
 [2.11.3]: https://github.com/grisp/grisp_tools/compare/2.11.2...2.11.3
