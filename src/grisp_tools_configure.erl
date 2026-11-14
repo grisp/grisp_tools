@@ -137,6 +137,12 @@ settings_options() ->
               type = boolean, default = true,
               description = "Applies jit patches to OTP if available",
               hint = "Has effect only if jit patches are available for you selected OTP version"},
+     #set_opts{prompt = "Enable Rust NIF support ?", long = rust,
+              type = boolean, default = false,
+              description = "Generate a Rust NIF example and build configuration"},
+     #set_opts{prompt = "Include a C NIF example ?", long = c_nif,
+              type = boolean, default = false,
+              description = "Generate a C NIF example and build configuration"},
      #set_opts{prompt = "SD Card path", long = dest, short = $d, type = string,
               default = "/path/to/SD-card",
               description = "The path to the SD card where you want to deploy "

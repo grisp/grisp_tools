@@ -40,10 +40,12 @@ run(Configuration) ->
                 {copy, [
                     fun files/1,
                     fun drivers/1,
-                    fun nifs/1
+                    fun nifs/1,
+                    fun nif_libraries/1
                 ]}
             ]},
             {compile, [
+                fun pre_compile/1,
                 fun configure/1,
                 fun update_preloaded/1,
                 fun boot/1,
@@ -65,6 +67,7 @@ build(#{paths := #{toolchain := {directory, ToolchainRoot}}} = S0) ->
     PATH = os:getenv("PATH"),
     Env = #{
         "GRISP_TC_ROOT" => ToolchainRoot,
+        "GRISP_PROJECT_ROOT" => maps:get(project_root, S1),
         "PATH" => filename:join(ToolchainRoot, "bin") ++ ":" ++ PATH
     },
     mapz:deep_merge(S1, #{shell => #{env => Env}}).
@@ -127,13 +130,21 @@ clean(State0) ->
 
 patch(#{build := #{overlay := #{patches := Patches}}} = S0) ->
     Sorted = lists:sort(maps:to_list(Patches)),
-    lists:foldl(fun apply_patch/2, S0, Sorted).
+    S1 = grisp_tools_native:patch(S0),
+    lists:foldl(fun apply_patch/2, S1, Sorted).
 
 files(State0) -> copy_files(State0, files, "").
 
 drivers(State0) -> copy_files(State0, drivers, "").
 
 nifs(State0) -> copy_files(State0, nifs, "").
+
+nif_libraries(State0) ->
+    State1 = grisp_tools_native:prepare(State0),
+    case mapz:deep_get([build, native_nifs], State1, []) of
+        [] -> event(State1, ['_skip']);
+        _ -> State1
+    end.
 
 copy_files(State0, Type, SubDir) ->
     #{
@@ -149,6 +160,9 @@ copy_files(State0, Type, SubDir) ->
             Target = filename:join(Root, SubDir),
             lists:foldl(fun(F, S) -> copy_file(Target, F, S) end, State0, Files)
     end.
+
+pre_compile(State) ->
+    run_hooks(State, pre_compile, [{cd, mapz:deep_get([paths, build], State)}]).
 
 configure(#{build := Build, otp_version := {[Ver | _], _, _, _}} = S0) ->
     #{
@@ -278,25 +292,47 @@ build_step(Command, Opts, S0) ->
 
 %--- Internal ------------------------------------------------------------------
 
-dockerize_command(Cmd, S0) ->
+dockerize_command(Cmd, #{apps := Apps} = S0) ->
     {ok, Cwd} = file:get_cwd(),
     Env = mapz:deep_get([shell, env], S0),
     BuidPath = binary_to_list(mapz:deep_get([paths, build], S0)),
     {docker, Image} = mapz:deep_get([paths, toolchain], S0),
     BuildSubdir = string:prefix(BuidPath, Cwd),
-    VolumeArg = grisp_tools_util:shell_quote([Cwd, ":", Cwd]),
+    Volumes = [[" --volume ", grisp_tools_util:shell_quote([Dir, ":", Dir])]
+               || Dir <- docker_mount_dirs(Cwd, Apps)],
     EnvArgs = [
         [" -e ", grisp_tools_util:shell_quote([K, "=", V])]
         || {K, V} <- maps:to_list(Env)
     ],
     Script = ["cd ", grisp_tools_util:shell_quote([Cwd, BuildSubdir]), " && ", Cmd],
     [
-        "docker run --rm",
+        "docker run --rm --user \"$(id -u):$(id -g)\"",
         EnvArgs,
-        " --volume ", VolumeArg,
+        Volumes,
         " ", grisp_tools_util:shell_quote(Image),
         " sh -c ", grisp_tools_util:shell_quote(Script)
     ].
+
+%% Hooks can access their owning application's other files. Bind external path
+%% dependencies and linked checkouts at their original paths, just like the project.
+docker_mount_dirs(Cwd, Apps) ->
+    Root = filename:split(Cwd),
+    Extra = [Dir || #{dir := AppDir} <- maps:values(Apps),
+                    Dir <- [filename:absname(unicode:characters_to_list(AppDir))],
+                    Dir =/= Cwd,
+                    not lists:prefix(Root, filename:split(Dir)) orelse linked_path(Dir, Cwd)],
+    [Cwd | lists:usort(Extra)].
+
+linked_path(Root, Root) -> false;
+linked_path(Path, Root) ->
+    case file:read_link(Path) of
+        {ok, _} -> true;
+        {error, _} ->
+            case filename:dirname(Path) of
+                Path -> false;
+                Parent -> linked_path(Parent, Root)
+            end
+    end.
 
 apply_patch({Name, Patch}, State0) ->
     Dir = mapz:deep_get([paths, build], State0),
@@ -346,7 +382,7 @@ copy_file(Root, File, State0) ->
     State1.
 
 run_hooks(#{paths := #{toolchain := {ToolchainType, _}}} = S0, Type, Opts) ->
-    Hooks = mapz:deep_get([build, overlay, hooks, Type], S0, []),
+    Hooks = mapz:deep_get([build, overlay, hooks, Type], S0, #{}),
     case maps:size(Hooks) of
         0 ->
             S0;
@@ -355,7 +391,7 @@ run_hooks(#{paths := #{toolchain := {ToolchainType, _}}} = S0, Type, Opts) ->
             lists:foldl(fun({_Name, #{source := Source} = Hook}, S2) ->
                 S3 = event(S2, [hook, Type, {run, Hook}]),
                 Cmd = case ToolchainType of
-                    docker -> dockerize_command(Source, S0);
+                    docker -> dockerize_command(grisp_tools_util:shell_quote(Source), S0);
                     directory -> Source
                 end,
                 shell_ok(S3, Cmd, Opts)
@@ -419,3 +455,62 @@ run_git_plumbings([{Cmd,Check}|Plumbings], S0) ->
             S1 = event(S0, [{error, Cmd}]),
             run_git_plumbings(Plumbings, S1)
     end.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+docker_mount_dirs_test() ->
+    Base = filename:join("/tmp", "grisp-hook ' mounts-" ++
+                         integer_to_list(erlang:unique_integer([positive]))),
+    Project = filename:join(Base, "project"),
+    External = filename:join(Base, "dependency"),
+    Similar = Project ++ "-dependency",
+    Link = filename:join(Project, "_checkouts"),
+    Linked = filename:join(Link, "linked"),
+    try
+        ok = filelib:ensure_dir(filename:join(Project, "deps/plain/.keep")),
+        ok = filelib:ensure_dir(filename:join(External, "linked/.keep")),
+        ok = file:make_symlink("../dependency", Link),
+        Plain = #{owner => #{dir => list_to_binary(Project)},
+                  plain => #{dir => filename:join(Project, "deps/plain")}},
+        ?assertEqual([Project], docker_mount_dirs(Project, Plain)),
+        Apps = Plain#{external => #{dir => External},
+                      duplicate => #{dir => list_to_binary(External)},
+                      similar => #{dir => Similar}, linked => #{dir => Linked}},
+        ?assertEqual([Project | lists:sort([External, Similar, Linked])],
+                     docker_mount_dirs(Project, Apps))
+    after file:del_dir_r(Base) end.
+
+hook_commands_test() ->
+    {ok, Cwd} = file:get_cwd(),
+    External = Cwd ++ "-external dependency's",
+    First = list_to_binary(filename:join(External, "first hook's.sh")),
+    Last = list_to_binary(filename:join(External, "last hook.sh")),
+    Hooks = #{"post-install-001-first" => #{source => First},
+              "post-install-999-last" => #{source => Last}},
+    Install = filename:join(Cwd, "_build/test/install"),
+    Shell = fun(Cmd, Options, Calls) -> {{ok, <<>>}, [{Cmd, Options} | Calls]} end,
+    Base = #{apps => #{owner => #{dir => Cwd}, external => #{dir => External}},
+             paths => #{build => list_to_binary(filename:join(Cwd, "_build/test/build"))},
+             build => #{overlay => #{hooks => #{post_install => Hooks}}},
+             shell => #{env => #{}}, event_stack => [],
+             handlers => #{shell => {Shell, []}, event => {fun(_, S) -> {ok, S} end, []}}},
+    lists:foreach(fun(Toolchain) ->
+        State = mapz:deep_put([paths, toolchain], Toolchain, Base),
+        ?assertEqual(State, run_hooks(State, pre_compile, [])),
+        Result = run_hooks(State, post_install, [{cd, Install}]),
+        #{shell := [{LastCmd, LastOpts}, {FirstCmd, FirstOpts}]} =
+            grisp_tools:handlers_finalize(Result),
+        ?assertEqual(Install, proplists:get_value(cd, FirstOpts)),
+        ?assertEqual(FirstOpts, LastOpts),
+        case Toolchain of
+            {directory, _} ->
+                ?assertEqual(First, FirstCmd),
+                ?assertEqual(Last, LastCmd);
+            {docker, _} ->
+                Volume = iolist_to_binary(grisp_tools_util:shell_quote([External, ":", External])),
+                ?assertNotEqual(nomatch, binary:match(iolist_to_binary(FirstCmd), Volume)),
+                ?assertNotEqual(nomatch, binary:match(iolist_to_binary(LastCmd), Volume))
+        end
+    end, [{directory, "/old-c-only-sdk"}, {docker, "old-c-only-sdk:test"}]).
+-endif.

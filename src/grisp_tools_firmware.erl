@@ -158,6 +158,8 @@ create_image(State = #{temp_dir := TempDir}) ->
     case edifa:create(ImageFile, ?GRISP2_IMAGE_SIZE, Opts) of
         {ok, Pid, State2} ->
             State2#{edifa_pid => Pid};
+        {error, Reason} ->
+            event(State, [{error, Reason}]);
         {error, Reason, State2} ->
             event(State2, [{error, Reason}])
     end.
@@ -353,7 +355,7 @@ docker_export(State, ImageName, InPath, OutDir) ->
         " && cp -rf ", grisp_tools_util:shell_quote(InPath), " ."
     ],
     Command = [
-        "docker run --rm --volume ", VolumeArg,
+        "docker run --rm --user \"$(id -u):$(id -g)\" --volume ", VolumeArg,
         " ", grisp_tools_util:shell_quote(ImageName),
         " sh -c ", grisp_tools_util:shell_quote(Script)
     ],
