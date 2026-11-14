@@ -1,0 +1,104 @@
+-module(grisp_tools_rust_sdk_tests).
+-include_lib("eunit/include/eunit.hrl").
+
+sdk_contract_test() ->
+    Root = filename:join("/tmp", "rust sdk " ++ integer_to_list(erlang:unique_integer([positive]))),
+    SDK = filename:join(Root, "sdk"),
+    Work = filename:join(Root, "_grisp/board/rust/29.1.2"),
+    Target = <<"armv7-rtems-eabihf">>,
+    ABI = #{<<"rtems_major">> => 5, <<"c_target">> => <<"arm-rtems5">>,
+            <<"panic">> => <<"unwind">>, <<"newlib_errno">> => <<"__errno">>,
+            <<"c_enum_min_bits">> => 32, <<"std_variants">> => [<<"generic">>]},
+    Policy = #{rtems_major => 5, c_target => <<"arm-rtems5">>, panic => <<"unwind">>,
+               newlib_errno => <<"__errno">>, c_enum_min_bits => 32, std_variant => <<"generic">>},
+    Platform = #{cargo_opts => [{target, Target}], nm => "arm-rtems5-nm", sdk => Policy},
+    Core = #{schema => 1, identity => <<"sdk-A">>, targets => #{Target => ABI}},
+    Nif = #{schema => 1, identity => <<"sdk-A">>, rustler => [<<"0.39.0">>],
+            cargo_config => <<"share/rust-nif/cargo/config.toml">>},
+    Write = fun(Relative, Data) ->
+        Path = filename:join(SDK, Relative),
+        ok = filelib:ensure_dir(Path),
+        ok = file:write_file(Path, Data)
+    end,
+    Resolve = fun() -> grisp_tools_rust_sdk:resolve({directory, SDK}, Root, Work, Platform) end,
+    try
+        Missing = filename:join(SDK, "share/rtems/rust-support.json"),
+        ?assertError({rust_sdk_missing_support, Missing}, Resolve()),
+        Write("share/rtems/rust-support.json", jsx:encode(Core)),
+        Write("share/rust-nif/support.json", jsx:encode(Nif#{identity := <<"different">>})),
+        ?assertError({rust_sdk_invalid, mismatched_capabilities}, Resolve()),
+        Write("share/rust-nif/support.json", jsx:encode(Nif)),
+        Write("share/rtems/rust-support.json", jsx:encode(Core#{targets := #{}})),
+        ?assertError({rust_sdk_target_missing, Target}, Resolve()),
+        Write("share/rtems/rust-support.json", jsx:encode(Core#{targets := #{Target => ABI#{<<"c_enum_min_bits">> := 8}}})),
+        ?assertError({rust_sdk_abi_mismatch, c_enum_min_bits, 32, 8}, Resolve()),
+        Write("share/rtems/rust-support.json", jsx:encode(Core)),
+        lists:foreach(fun(Name) ->
+            Write("bin/" ++ Name, <<>>),
+            ok = file:change_mode(filename:join([SDK, "bin", Name]), 8#755)
+        end,
+                      ["cargo", "rustc", "rustler-bundler", "arm-rtems5-nm",
+                       "arm-rtems5-gcc", "arm-rtems5-g++", "arm-rtems5-ar"]),
+        Std = "lib/rustlib/armv7-rtems-eabihf/lib/",
+        lists:foreach(fun(Name) -> Write(Std ++ "lib" ++ Name ++ "-test.rlib", <<>>) end,
+                      ["core", "alloc", "std", "panic_unwind"]),
+        Write("share/rust-nif/cargo/config.toml", <<"[patch.crates-io]\nrustler_039 = { package = \"rustler\", path = \"crates/rustler/0.39.0/rustler\" }\n">>),
+        Write("GRISP_TOOLCHAIN_REVISION", <<"revision-A\n">>),
+        #{env := Env, cargo := [Cargo, <<"--config">>, _], identity := First} = Resolve(),
+        ?assertEqual(list_to_binary(filename:join(SDK, "bin/cargo")), Cargo),
+        ?assertEqual(false, proplists:get_value("RUSTC_BOOTSTRAP", Env)),
+        ?assertEqual(filename:join(Work, "cargo-home"), proplists:get_value("CARGO_HOME", Env)),
+        ?assertEqual(filename:join(SDK, "bin/arm-rtems5-gcc"), proplists:get_value("CC_armv7_rtems_eabihf", Env)),
+        {ok, Config} = file:read_file(filename:join(Work, "cargo-home/config.toml")),
+        ?assertNotEqual(nomatch, binary:match(Config, list_to_binary(filename:join(SDK, "share/rust-nif/crates")))),
+        Sentinel = filename:join(Work, "target/retained"),
+        ok = filelib:ensure_dir(Sentinel), ok = file:write_file(Sentinel, <<>>),
+        #{identity := First} = Resolve(),
+        ?assert(filelib:is_regular(Sentinel)),
+        Write("GRISP_TOOLCHAIN_REVISION", <<"revision-B\n">>),
+        #{identity := Second} = Resolve(),
+        ?assertNotEqual(First, Second),
+        ?assertNot(filelib:is_regular(Sentinel)),
+        ok = filelib:ensure_dir(Sentinel), ok = file:write_file(Sentinel, <<>>),
+        %% A rebuilt std changes SDK capability data even at the same Git revision.
+        Write("share/rtems/rust-support.json", jsx:encode(Core#{build => #{artifacts => <<"new-std">>}})),
+        #{identity := Third} = Resolve(),
+        ?assertNotEqual(Second, Third),
+        ?assertNot(filelib:is_regular(Sentinel)),
+        Write("share/rtems/rust-support.json", jsx:encode(Core)),
+        docker_contract(SDK, Root, Work, Platform),
+        Write("share/rust-nif/support.json", jsx:encode(Nif#{cargo_config := <<"../outside.toml">>})),
+        ?assertError({rust_sdk_invalid, {path, "../outside.toml"}}, Resolve())
+    after file:del_dir_r(Root) end.
+
+%% Exercise Docker argument/environment handling without claiming an image run.
+docker_contract(SDK, Project, Work, Platform) ->
+    Bin = filename:join(Project, "fake-bin"),
+    Fake = filename:join(Bin, "docker"),
+    ok = filelib:ensure_dir(Fake),
+    Script = ["#!/usr/bin/env python3\nimport glob, json, os, pathlib, sys\n",
+        "sdk = ", jsx:encode(list_to_binary(SDK)), "\n",
+        "args = sys.argv[1:]\ncmd = args[args.index('test-sdk:latest') + 1:]\n",
+        "if cmd[:2] == ['sh', '-c'] and 'printf' in cmd[2]:\n    print(sdk, end='')\n",
+        "elif cmd[0] == 'cat':\n    sys.stdout.write(pathlib.Path(cmd[1]).read_text())\n",
+        "elif cmd[0] == 'test':\n    sys.exit(0 if pathlib.Path(cmd[2]).is_file() else 1)\n",
+        "elif cmd[:2] == ['sh', '-c']:\n    sys.exit(0 if glob.glob(cmd[-2] + '/lib' + cmd[-1] + '-*.rlib') else 1)\n",
+        "else:\n    print(json.dumps({'args': args, 'rustc': os.environ.get('RUSTC')}))\n"],
+    ok = file:write_file(Fake, Script),
+    ok = file:change_mode(Fake, 8#755),
+    Previous = os:getenv("PATH"),
+    true = os:putenv("PATH", Bin ++ ":" ++ Previous),
+    try
+        #{bundler := Bundler, nm := Nm, env := Env, cargo := [Cargo | _]} =
+            grisp_tools_rust_sdk:resolve({docker, "test-sdk:latest"}, Project, Work, Platform),
+        ?assertEqual(list_to_binary(filename:join(SDK, "bin/cargo")), Cargo),
+        ?assert(filelib:is_regular(Nm)),
+        Opts = cargo_opts:new(#{path => Project, env => Env}),
+        [#{<<"args">> := Args, <<"rustc">> := Rustc}] =
+            cargo_cmd:run_executable(Opts, Bundler, ["--version"]),
+        ?assert(lists:member(list_to_binary(Project ++ ":" ++ Project), Args)),
+        ?assert(lists:member(<<"--workdir">>, Args)),
+        ?assertEqual([list_to_binary(filename:join(SDK, "bin/rustler-bundler")), <<"--version">>],
+                     lists:nthtail(length(Args) - 2, Args)),
+        ?assertEqual(list_to_binary(filename:join(SDK, "bin/rustc")), Rustc)
+    after os:putenv("PATH", Previous) end.
