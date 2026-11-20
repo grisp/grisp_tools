@@ -118,6 +118,8 @@ create_image(State = #{temp_dir := TempDir}) ->
     case edifa:create(ImageFile, ?GRISP2_IMAGE_SIZE, Opts) of
         {ok, Pid, State2} ->
             State2#{edifa_pid => Pid};
+        {error, Reason} ->
+            event(State, [{error, Reason}]);
         {error, Reason, State2} ->
             event(State2, [{error, Reason}])
     end.
