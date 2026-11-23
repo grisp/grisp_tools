@@ -155,6 +155,7 @@ jobs:
         if: steps.tag.outputs.exists != 'true'
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          GPG_KEY_PASSPHRASE: ${{ secrets.GPG_KEY_PASSPHRASE }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
         run: |
           : "${RELEASE_SIGNING_KEY:?Set RELEASE_SIGNING_KEY in the release environment.}"
@@ -164,13 +165,23 @@ jobs:
           trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
           printf '%s\n' "$RELEASE_SIGNING_KEY" | gpg --batch --import
           unset RELEASE_SIGNING_KEY
+
+          cat > "$GNUPGHOME/git-gpg" <<'BASH'
+          #!/usr/bin/env bash
+          exec gpg --batch --pinentry-mode loopback --passphrase-fd 3 "$@" \
+            3< <(printf '%s\n' "$GPG_KEY_PASSPHRASE")
+          BASH
+          chmod 700 "$GNUPGHOME/git-gpg"
+
           git config user.name 'GRiSP Release'
           git config user.email "$RELEASE_SIGNING_EMAIL"
           git config user.signingkey "$RELEASE_SIGNING_EMAIL"
 
           git add -- CHANGELOG.md
-          git commit --gpg-sign -m "Version $RELEASE_VERSION" -m "Release-Run: $GITHUB_RUN_ID"
-          git tag --sign -m "Version $RELEASE_VERSION" "$RELEASE_VERSION"
+          git -c gpg.program="$GNUPGHOME/git-gpg" commit --gpg-sign \
+            -m "Version $RELEASE_VERSION" -m "Release-Run: $GITHUB_RUN_ID"
+          git -c gpg.program="$GNUPGHOME/git-gpg" tag --sign \
+            -m "Version $RELEASE_VERSION" "$RELEASE_VERSION"
 
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         if: steps.hex.outputs.has_docs != 'true'
