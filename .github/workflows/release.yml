@@ -17,7 +17,6 @@ defaults:
 jobs:
   release:
     name: Publish the release
-    if: github.repository == 'grisp/grisp_tools'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     environment: release
@@ -26,16 +25,25 @@ jobs:
       id-token: write # Request an OIDC token for Hex.
     env:
       RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
-      TZ: Europe/Rome
+      TZ: ${{ vars.RELEASE_TIME_ZONE || 'Europe/Rome' }}
     steps:
-      - name: Check the release version
+      - name: Check the release inputs
+        env:
+          PACKAGE_OVERRIDE: ${{ vars.HEX_PACKAGE_NAME }}
         run: |
           if ! version=$(jq -er '.client_payload.version | strings |
             select(test("\\A(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)){2}\\z"))' "$GITHUB_EVENT_PATH"); then
             echo 'Use a version in X.Y.Z format.' >&2
             exit 1
           fi
+          package=${PACKAGE_OVERRIDE:-${GITHUB_REPOSITORY##*/}}
+          if [[ ! $package =~ ^[a-z][a-z0-9_]*$ ]]; then
+            echo 'Set HEX_PACKAGE_NAME to the Hex package name.' >&2
+            exit 1
+          fi
           echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "HEX_PACKAGE=$package" >> "$GITHUB_ENV"
+          echo "HEX_RELEASE_URL=https://hex.pm/api/packages/$package/releases/$version" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -82,8 +90,8 @@ jobs:
         env:
           TAG_EXISTS: ${{ steps.tag.outputs.exists }}
         run: |
-          url="https://hex.pm/api/packages/grisp_tools/releases/$RELEASE_VERSION"
-          status=$(curl --silent --show-error --output "$RUNNER_TEMP/hex-release.json" --write-out '%{http_code}' "$url")
+          status=$(curl --silent --show-error --output "$RUNNER_TEMP/hex-release.json" \
+            --write-out '%{http_code}' "$HEX_RELEASE_URL")
           case "$status" in
             404) ;;
             200)
@@ -173,7 +181,7 @@ jobs:
           BASH
           chmod 700 "$GNUPGHOME/git-gpg"
 
-          git config user.name 'GRiSP Release'
+          git config user.name "$GITHUB_REPOSITORY_OWNER Release"
           git config user.email "$RELEASE_SIGNING_EMAIL"
           git config user.signingkey "$RELEASE_SIGNING_EMAIL"
 
@@ -186,8 +194,8 @@ jobs:
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         if: steps.hex.outputs.has_docs != 'true'
         with:
-          otp-version: '29'
-          rebar3-version: '3.28.0'
+          otp-version: ${{ vars.RELEASE_OTP_VERSION || '29' }}
+          rebar3-version: ${{ vars.RELEASE_REBAR3_VERSION || '3.28.0' }}
 
       - name: Set up the Hex plugin
         if: steps.hex.outputs.has_docs != 'true'
@@ -203,8 +211,11 @@ jobs:
         run: |
           rebar3 compile
           rebar3 dialyzer
-          rebar3 hex build
-          package="_build/default/lib/grisp_tools/hex/grisp_tools-$RELEASE_VERSION.tar"
+          output="$RUNNER_TEMP/hex-build"
+          # rebar3_hex 7.5.0 writes the archives to the tmp subdirectory.
+          mkdir -p "$output/tmp"
+          rebar3 hex build --output "$output"
+          package="$output/tmp/$HEX_PACKAGE-$RELEASE_VERSION.tar"
           tar -xOf "$package" metadata.config
           tar -xOf "$package" contents.tar.gz | tar -tzf -
           tar -tf "${package%.tar}-docs.tar" > "$RUNNER_TEMP/docs-files"
@@ -229,9 +240,8 @@ jobs:
 
       - name: Verify the Hex release and documentation
         run: |
-          url="https://hex.pm/api/packages/grisp_tools/releases/$RELEASE_VERSION"
           for attempt in {1..12}; do
-            if curl --fail --silent --show-error --max-time 10 "$url" |
+            if curl --fail --silent --show-error --max-time 10 "$HEX_RELEASE_URL" |
               jq -e --arg version "$RELEASE_VERSION" --arg run "$GITHUB_RUN_ID" \
                 '.version == $version and .has_docs == true and (.oidc_claims.run_id | tostring) == $run' > /dev/null; then
               exit 0
