@@ -8,6 +8,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-11-23
+
+### Added
+
+- Add Rust NIF and native archive support
+- Add automated release workflow (#58)
+
+
+### Fixed
+
+- Fix noninteractive release signing
+
 ## [2.11.6] - 2026-10-28
 
 ### Changed
@@ -311,7 +323,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.11.6...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.12.0...HEAD
+[2.12.0]: https://github.com/grisp/grisp_tools/compare/2.11.6...2.12.0
 [2.11.6]: https://github.com/grisp/grisp_tools/compare/2.11.5...2.11.6
 [2.11.5]: https://github.com/grisp/grisp_tools/compare/2.11.4...2.11.5
 [2.11.4]: https://github.com/grisp/grisp_tools/compare/2.11.3...2.11.4
