@@ -23,6 +23,9 @@
 -export([mv/2]).
 -export([rm/1]).
 -export([build_overlay/5]).
+-export([build_config/4]).
+-export([check_build/1]).
+-export([is_build_output/2]).
 -export([deploy_overlay/4]).
 -export([build_hash/1]).
 -export([build_hash_format/1]).
@@ -180,8 +183,29 @@ build_overlay(App, AppDir, Platform, Jit, Version) ->
             fun(S) -> collect_build_nifs(App, BuildDir, S) end,
             fun(S) -> collect_build_hooks(App, BuildDir, S) end
         ])),
-        {NewFiles, collect_build_config(App, Dir, Config)}
+        NewConfig = collect_build_config(App, Dir, Config),
+        Inputs = maps:get(inputs, NewConfig, []),
+        InputFiles = collect_build_inputs(App, AppDir, Inputs),
+        {mapz:deep_merge(NewFiles, #{inputs => InputFiles}), NewConfig}
     end).
+
+%% Read explicitly named configuration folders without OTP-version selection.
+build_config(App, AppDir, Platform, Folders) ->
+    PlatformDir = filename:join([AppDir, grisp, Platform]),
+    lists:foldl(fun(Folder, Config) ->
+        collect_build_config(App, filename:join(PlatformDir, Folder), Config)
+    end, #{}, Folders).
+
+%% Use the same recorded build inputs for C sources, archives, patches and hooks.
+check_build(#{paths := #{install := Root}, build := #{hash := #{index := Index}}} = State) ->
+    Path = filename:join(Root, "GRISP_PACKAGE_FILES"),
+    Expected = iolist_to_binary(build_hash_format(Index)),
+    case file:read_file(Path) of
+        {ok, Expected} ->
+            State;
+        _ ->
+            error({build_inputs_stale, Path})
+    end.
 
 deploy_overlay(App, AppDir, Platform, Version) ->
     collect_overlay(AppDir, Platform, Version, #{}, fun(Dir, Files) ->
@@ -244,7 +268,7 @@ is_inferior_subversion(_, _) -> false.
 merge_build_config(C1, C2) ->
     mapz:deep_merge(C1, C2).
 
-build_hash(#{build := #{overlay := Overlay}}) ->
+build_hash(#{build := #{overlay := Overlay}} = State) ->
     Hooks = maps:get(hooks, Overlay, #{}),
     AllHooks = maps:from_list([{N, I} || {_T, F} <- maps:to_list(Hooks), {N, I} <- maps:to_list(F)]),
     HashIndex = lists:sort(maps:fold(fun
@@ -263,7 +287,7 @@ build_hash(#{build := #{overlay := Overlay}}) ->
                 {ok, Hash} = hash_file(Origin, sha256),
                 [{File, format_hash(sha256, Hash)}|L]
             end, [], Files)
-    end, [], Overlay#{hooks => AllHooks})),
+    end, [], Overlay#{hooks => AllHooks}) ++ grisp_tools_native:hash_index(State)),
     TopHash = format_hash(sha256, crypto:hash(sha256, build_hash_format(HashIndex))),
     {TopHash, HashIndex}.
 
@@ -505,7 +529,50 @@ collect_build_hooks(App, Root, State0) ->
     end, State0, filelib:wildcard("*", binary_to_list(Dir))).
 
 hook_prefix("post-install" ++ _) -> post_install;
+hook_prefix("pre-compile" ++ _) -> pre_compile;
 hook_prefix(Hook) -> error({unknown_hook_prefix, Hook}).
+
+% Extra native sources and local path dependencies affect the OTP package hash,
+% even when a build hook reads them directly rather than copying them into OTP.
+collect_build_inputs(App, AppDir, Inputs) ->
+    lists:foldl(fun(Input, Acc) ->
+        Source = filename:absname(Input, AppDir),
+        Prefix = filename:join(["inputs", atom_to_list(App), Input]),
+        collect_input_tree(App, Source, Prefix, Acc)
+    end, #{}, Inputs).
+
+collect_input_tree(App, Source, Name, Acc) ->
+    case file:list_dir(Source) of
+        {ok, Entries} ->
+            lists:foldl(fun(Entry, A) ->
+                case is_build_output(Source, Entry) of
+                    true -> A;
+                    false -> collect_input_tree(App,
+                        filename:join(Source, Entry), filename:join(Name, Entry), A)
+                end
+            end, Acc, Entries);
+        {error, enotdir} ->
+            Key = iolist_to_binary(Name),
+            Acc#{Key => file_info(Key, App, Source)};
+        {error, Reason} ->
+            error({invalid_build_input, Source, Reason})
+    end.
+
+%% Recognize Cargo's marked cache beside its manifest, not every directory named
+%% target: both src/target and a custom target/lib.rs can contain source code.
+is_build_output(_Parent, ".git") -> true;
+is_build_output(Parent, "target") ->
+    case filelib:is_regular(filename:join(Parent, "Cargo.toml")) of
+        false -> false;
+        true -> case file:read_file(filename:join([Parent, "target", "CACHEDIR.TAG"])) of
+            {ok, <<"Signature: 8a477f597d28d172789f06886806bc55", _/binary>>} -> true;
+            _ -> false
+        end
+    end;
+is_build_output(Parent, Name) when Name =:= "_build"; Name =:= "_grisp" ->
+    filelib:is_regular(filename:join(Parent, "rebar.config")) orelse
+        filelib:is_regular(filename:join(Parent, "mix.exs"));
+is_build_output(_, _) -> false.
 
 collect_build_config(_App, Dir, Acc) ->
     case file:consult(filename:join(Dir, "grisp.config")) of

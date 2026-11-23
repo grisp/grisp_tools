@@ -32,7 +32,7 @@ run(State) ->
 %--- Tasks ---------------------------------------------------------------------
 
 package(State0 = #{custom_build := true, build := #{hash := #{value := Hash}}}) ->
-    event(State0, [{type, {custom_build, Hash}}]);
+    event(grisp_tools_util:check_build(State0), [{type, {custom_build, Hash}}]);
 package(State0 = #{build := #{hash := #{value := Hash}}}) ->
     State1 = event(State0, [{type, {package, Hash}}]),
     grisp_tools_util:weave(State1, [
@@ -227,7 +227,8 @@ write_file(State0 = #{dist := #{type := copy, force := Force}}, Dest,
     State2 = dist_hash_update(State1, Target, Content),
     force_execute(Path, Force, fun(F) ->
         grisp_tools_util:ensure_dir(F),
-        grisp_tools_util:write_file(Dest, File, Content, FileInfo)
+        grisp_tools_util:write_file(Dest, File, Content),
+        copy_file_info(F, FileInfo)
     end, State2).
 
 force_execute(File, Force, Fun, State0) ->
@@ -248,15 +249,33 @@ dist_create_dir_callback(State0 = #{dist := #{type := copy}},
                          DestRoot, RelPath, FileInfo) ->
     DestPath = filename:join(DestRoot, RelPath),
     grisp_tools_util:filelib_ensure_path(filename:join(DestPath, "dummy.file")),
-    case file:write_file_info(DestPath, FileInfo, [{time, posix}]) of
-        ok -> State0;
-        {error, Reason} ->
-            erlang:error({write_file_info_error, Reason, DestPath})
+    copy_file_info(DestPath, FileInfo),
+    State0.
+
+%% Deployment copies retain timestamps and supported modes, not build-host owners.
+copy_file_info(_Path, undefined) -> ok;
+copy_file_info(Path, Info) ->
+    Metadata = #file_info{atime = Info#file_info.atime, mtime = Info#file_info.mtime,
+                          mode = Info#file_info.mode},
+    Result = case file:write_file_info(Path, Metadata, [{time, posix}]) of
+        {error, eperm} ->
+            %% FAT mount masks may reject chmod; preserve timestamps separately.
+            file:write_file_info(Path, Metadata#file_info{mode = undefined}, [{time, posix}]);
+        Other -> Other
+    end,
+    case Result of
+        ok -> ok;
+        {error, Reason} -> error({write_file_info_error, Reason, Path})
     end.
 
-dist_copy_callback(State0, SrcPath, DestRoot, RelPath, FileInfo) ->
-    FileSpec = #{source => SrcPath, target => RelPath, name => RelPath},
-    copy_file(State0, DestRoot, FileSpec, FileInfo, #{}).
+dist_copy_callback(State0 = #{release := Release}, SrcPath, DestRoot, RelPath, FileInfo) ->
+    case {maps:get(include_debug, Release, false), filename:split(RelPath)} of
+        {false, [_, "erts-" ++ _, "bin", "beam.smp"]} ->
+            State0;
+        _ ->
+            FileSpec = #{source => SrcPath, target => RelPath, name => RelPath},
+            copy_file(State0, DestRoot, FileSpec, FileInfo, #{})
+    end.
 
 dist_release(State0 = #{release := #{name := RelName, dir := Source},
                         dist := #{type := archive}}) ->
@@ -442,5 +461,102 @@ release(State0, Release) ->
     State1 = event(State0, [{start, Release}]),
     {Spec, State2} = exec(release, State1, [Release]),
     Merged = maps:merge(Release, Spec),
+    case mapz:deep_get([build, native_nifs], State2, []) of
+        [] -> ok;
+        Nifs -> ok = grisp_tools_native:strip_release(maps:get(dir, Merged), Nifs)
+    end,
     State3 = event(State2, [{done, Merged}]),
     mapz:deep_merge(State3, #{release => Merged}).
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+copy_metadata_test() ->
+    Root = filename:join("/tmp", "grisp-copy-metadata-" ++
+                         integer_to_list(erlang:unique_integer([positive]))),
+    File = filename:join(Root, "probe"),
+    State = #{dist => #{type => copy, force => false}, dist_hash => undefined,
+              event_stack => [], handlers => grisp_tools:handlers_init(#{
+                  event => {fun(_, S) -> {ok, S} end, []}})},
+    try
+        ok = filelib:ensure_dir(File),
+        {ok, DirInfo} = file:read_file_info(Root, [{time, posix}]),
+        %% Owners recorded in a container or another login group are not copied.
+        Foreign = DirInfo#file_info{uid = 0, gid = 0, mode = 8#755},
+        State = dist_create_dir_callback(State, Root, "subdir", Foreign),
+        State = write_file(State, Root, #{target => "probe"},
+                           Foreign#file_info{mtime = 1600000000}, <<"payload">>),
+        ?assertEqual({ok, <<"payload">>}, file:read_file(File)),
+        {ok, Copied} = file:read_file_info(File, [{time, posix}]),
+        ?assertEqual(DirInfo#file_info.uid, Copied#file_info.uid),
+        ?assertEqual(DirInfo#file_info.gid, Copied#file_info.gid),
+        ?assertEqual(8#755, Copied#file_info.mode band 8#777),
+        ?assertEqual(1600000000, Copied#file_info.mtime),
+        Missing = filename:join(Root, "missing"),
+        ?assertError({write_file_info_error, enoent, Missing}, copy_file_info(Missing, Foreign))
+    after file:del_dir_r(Root) end.
+
+dist_include_debug_test() ->
+    Root = filename:join("/tmp", "grisp-dist-debug-" ++
+                         integer_to_list(erlang:unique_integer([positive]))),
+    Source = filename:join(Root, "source"),
+    Debug = "erts-17.1.1/bin/beam.smp",
+    Runtime = "erts-17.1.1/bin/beam.zImage",
+    AppFile = "lib/example-1/priv/beam.smp",
+    try
+        lists:foreach(fun(RelPath) ->
+            Path = filename:join(Source, RelPath),
+            ok = filelib:ensure_dir(Path),
+            ok = file:write_file(Path, RelPath)
+        end, [Debug, Runtime, AppFile]),
+        lists:foreach(fun({Name, Options, Expected}) ->
+            Copy = filename:join(Root, Name),
+            Tar = Copy ++ ".tar.gz",
+            ok = file:make_dir(Copy),
+            Release = maps:merge(#{name => example, dir => Source}, Options),
+            State = #{release => Release, event_stack => [],
+                      handlers => grisp_tools:handlers_init(#{
+                          event => {fun(_, S) -> {ok, S} end, []}})},
+            CopyState = State#{dist => #{type => copy, destination => Copy, force => false}},
+            ArchiveState = State#{dist => #{type => archive, destination => Tar,
+                                            force => false, compressed => true}},
+            _ = dist_finish(dist_release(dist_prepare(CopyState))),
+            _ = dist_finish(dist_release(dist_prepare(ArchiveState))),
+            {ok, Members} = erl_tar:table(Tar, [compressed]),
+            ?assertEqual(Expected, filelib:is_file(filename:join([Copy, "example", Debug]))),
+            ?assertEqual(Expected, lists:member(filename:join("example", Debug), Members)),
+            lists:foreach(fun(RelPath) ->
+                Target = filename:join("example", RelPath),
+                ?assert(filelib:is_file(filename:join(Copy, Target))),
+                ?assert(lists:member(Target, Members))
+            end, [Runtime, AppFile])
+        end, [{"default", #{}, false},
+              {"disabled", #{include_debug => false}, false},
+              {"enabled", #{include_debug => true}, true}]),
+        ?assert(filelib:is_file(filename:join(Source, Debug)))
+    after file:del_dir_r(Root) end.
+
+release_cleanup_test() ->
+    Root = filename:join("/tmp", "grisp-release-handler-" ++
+                         integer_to_list(erlang:unique_integer([positive]))),
+    Host = filename:join([Root, "lib", "owner-1", "priv", "native", "example.so"]),
+    ok = filelib:ensure_dir(Host),
+    ok = file:write_file(Host, <<"host library">>),
+    State = #{event_stack => [], build => #{native_nifs => [#{host_artifacts => [
+        #{app => owner, path => "priv/native/example.so"}]}]},
+        handlers => grisp_tools:handlers_init(#{
+            event => {fun(_, S) -> {ok, S} end, []},
+            release => {fun(_, S) -> {#{dir => Root}, S} end, []}})},
+    try
+        #{release := #{dir := Root}} = release(State, #{name => example}),
+        ?assertNot(filelib:is_file(Host)),
+        ok = file:write_file(Host, <<"ordinary release">>),
+        _ = release(State#{build := #{}}, #{name => example}),
+        ?assert(filelib:is_file(Host)),
+        Handlers = maps:put(release, {fun(_, S) -> {#{}, S} end, []}, maps:get(handlers, State)),
+        #{release := #{name := example}} = release(State#{build := #{}, handlers := Handlers},
+                                                   #{name => example})
+    after
+        file:del_dir_r(Root)
+    end.
+-endif.

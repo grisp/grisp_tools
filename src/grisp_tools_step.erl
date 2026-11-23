@@ -112,7 +112,8 @@ apps(#{apps := Apps} = State0) ->
 collect(#{project_root := Root, platform := Platform,
           otp_version := Version, custom_build := CustomBuild} = S0) ->
     Platforms = [default, Platform],
-    S1 = lists:foldl(fun collect_platform_files/2, S0, Platforms),
+    S1 = grisp_tools_native:collect(
+        lists:foldl(fun collect_platform_files/2, S0, Platforms)),
     {Hash, HashIndex} = grisp_tools_util:build_hash(S1),
     S2 = event(S1, [{hash, Hash, HashIndex}]),
     S3 = mapz:deep_merge(S2, #{
