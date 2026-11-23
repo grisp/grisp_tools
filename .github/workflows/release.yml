@@ -218,10 +218,19 @@ jobs:
 
       - name: Verify the Hex release and documentation
         run: |
-          curl --fail --silent --show-error \
-            "https://hex.pm/api/packages/grisp_tools/releases/$RELEASE_VERSION" |
-            jq -e --arg version "$RELEASE_VERSION" --arg run "$GITHUB_RUN_ID" \
-              '.version == $version and .has_docs == true and (.oidc_claims.run_id | tostring) == $run'
+          url="https://hex.pm/api/packages/grisp_tools/releases/$RELEASE_VERSION"
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --max-time 10 "$url" |
+              jq -e --arg version "$RELEASE_VERSION" --arg run "$GITHUB_RUN_ID" \
+                '.version == $version and .has_docs == true and (.oidc_claims.run_id | tostring) == $run' > /dev/null; then
+              exit 0
+            fi
+            if [[ $attempt -lt 12 ]]; then
+              sleep 5
+            fi
+          done
+          echo "Could not verify Hex release $RELEASE_VERSION and its documentation." >&2
+          exit 1
 
       - name: Create the GitHub release
         env:
