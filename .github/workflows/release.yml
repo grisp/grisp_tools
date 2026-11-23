@@ -155,7 +155,7 @@ jobs:
         if: steps.tag.outputs.exists != 'true'
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
-          GPG_KEY_PASSPHRASE: ${{ secrets.GPG_KEY_PASSPHRASE }}
+          RELEASE_GPG_KEY_PASSPHRASE: ${{ secrets.RELEASE_GPG_KEY_PASSPHRASE }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
         run: |
           : "${RELEASE_SIGNING_KEY:?Set RELEASE_SIGNING_KEY in the release environment.}"
@@ -169,7 +169,7 @@ jobs:
           cat > "$GNUPGHOME/git-gpg" <<'BASH'
           #!/usr/bin/env bash
           exec gpg --batch --pinentry-mode loopback --passphrase-fd 3 "$@" \
-            3< <(printf '%s\n' "$GPG_KEY_PASSPHRASE")
+            3< <(printf '%s\n' "$RELEASE_GPG_KEY_PASSPHRASE")
           BASH
           chmod 700 "$GNUPGHOME/git-gpg"
 
