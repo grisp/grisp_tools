@@ -98,10 +98,62 @@ jobs:
             *) echo "Hex gave HTTP status $status." >&2; exit 1 ;;
           esac
 
-      - name: Commit and tag the release
+      - name: Update the changelog
         if: steps.tag.outputs.exists != 'true'
         env:
           PREVIOUS_TAG: ${{ steps.tag.outputs.previous }}
+        run: |
+          newest=$(printf '%s\n' "$PREVIOUS_TAG" "$RELEASE_VERSION" | sort -V | tail -n 1)
+          if [[ $RELEASE_VERSION == "$PREVIOUS_TAG" || $newest != "$RELEASE_VERSION" ]]; then
+            echo "Use a version greater than $PREVIOUS_TAG." >&2
+            exit 1
+          fi
+
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare"
+          awk -v previous="$PREVIOUS_TAG" -v version="$RELEASE_VERSION" \
+            -v date="$(date +%F)" -v compare="$compare" '
+            FILENAME == ARGV[1] {
+              generated = generated $0 "\n"
+              next
+            }
+            $0 == "## [Unreleased]" {
+              unreleased++
+              collecting = 1
+              print
+              next
+            }
+            !release && /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / {
+              if (!collecting || index($0, "## [" previous "] - ") != 1) exit 1
+              collecting = 0
+              release++
+              if (notes !~ /[^[:space:]]/) notes = generated
+              sub(/^\n+/, "", notes)
+              sub(/\n+$/, "", notes)
+              printf "\n## [%s] - %s\n\n", version, date
+              if (notes ~ /[^[:space:]]/) printf "%s\n\n", notes
+            }
+            collecting {
+              notes = notes $0 "\n"
+              next
+            }
+            $0 == "[Unreleased]: " compare "/" previous "...HEAD" {
+              links++
+              printf "[Unreleased]: %s/%s...HEAD\n", compare, version
+              printf "[%s]: %s/%s...%s\n", version, compare, previous, version
+              next
+            }
+            { print }
+            END { if (unreleased != 1 || release != 1 || links != 1) exit 1 }
+          ' "$RUNNER_TEMP/generated-changelog.md" CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md" || {
+            echo 'Check the release headings and comparison links in CHANGELOG.md.' >&2
+            exit 1
+          }
+          mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
+          git diff --check
+
+      - name: Commit and tag the release
+        if: steps.tag.outputs.exists != 'true'
+        env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
         run: |
@@ -116,8 +168,6 @@ jobs:
           git config user.email "$RELEASE_SIGNING_EMAIL"
           git config user.signingkey "$RELEASE_SIGNING_EMAIL"
 
-          python3 .scripts/release_changelog.py prepare "$RUNNER_TEMP/generated-changelog.md"
-          git diff --check
           git add -- CHANGELOG.md
           git commit --gpg-sign -m "Version $RELEASE_VERSION" -m "Release-Run: $GITHUB_RUN_ID"
           git tag --sign -m "Version $RELEASE_VERSION" "$RELEASE_VERSION"
@@ -180,12 +230,31 @@ jobs:
           if gh release view "$RELEASE_VERSION" > /dev/null 2>&1; then
             exit 0
           fi
-          python3 .scripts/release_changelog.py notes
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$RELEASE_VERSION" -v previous_file="$RUNNER_TEMP/previous-version" '
+            /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / {
+              if (!found) {
+                if (index($0, "## [" version "] - ") != 1) exit 1
+                found = 1
+                next
+              }
+              print substr($2, 2, length($2) - 2) > previous_file
+              done = 1
+              exit
+            }
+            found && NF {
+              printf "%s%s\n", blank, $0
+              blank = ""
+              started = 1
+              next
+            }
+            found && started { blank = blank "\n" }
+            END { if (!done) exit 1 }
+          ' CHANGELOG.md > "$notes"
           previous_version=$(cat "$RUNNER_TEMP/previous-version")
           gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f "tag_name=$RELEASE_VERSION" -f "previous_tag_name=$previous_version" \
             --jq '.body' > "$RUNNER_TEMP/generated-notes.md"
-          notes="$RUNNER_TEMP/release-notes.md"
           if grep -qE '^## New Contributors[[:space:]]*$' "$RUNNER_TEMP/generated-notes.md"; then
             printf '\n' >> "$notes"
             sed -nE '/^## New Contributors[[:space:]]*$/,$p' "$RUNNER_TEMP/generated-notes.md" >> "$notes"
