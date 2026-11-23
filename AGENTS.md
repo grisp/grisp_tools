@@ -20,11 +20,12 @@ Hex Workload Identity uses the `release.yml` workflow and the `release` environm
    ```
 
 3. Open the new run of the **Release** workflow in [GitHub Actions](https://github.com/grisp/grisp_tools/actions/workflows/release.yml).
-4. Open the Hex approval page from the **Publish to Hex** step log.
-5. Select **Approve** on the Hex approval page.
-6. Complete two-factor authentication on Hex.
+4. Get the link to the Hex approval page from the **Publish to Hex** step log.
+5. Give the link to the person who can approve the release on Hex.
+6. Wait for that person to approve the release on Hex.
 7. Make sure that GitHub shows the release for this version.
 
+The person who approves the release must complete two-factor authentication on Hex.
 The GitHub release follows the check for the package and documentation on Hex.
-If the run stops at its time limit, complete the approval on Hex.
-Then select **Re-run all jobs** on the page for the same run.
+If the run stops at its time limit, wait for the person to approve the release on Hex.
+After approval, select **Re-run all jobs** on the page for the same run.
