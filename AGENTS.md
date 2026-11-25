@@ -23,21 +23,18 @@ Hex Workload Identity uses the `release.yml` workflow and the `release` environm
 3. Open the new run of the **Release** workflow in [GitHub Actions](https://github.com/grisp/grisp_tools/actions/workflows/release.yml).
 4. Get the link to the Hex approval page from the **Publish to Hex** step log.
 5. Give the link to the person who can approve the release on Hex.
-6. Wait for that person to approve the release on Hex.
-7. Make sure that GitHub shows the release for this version.
 
 The person who approves the release must complete two-factor authentication on Hex.
-The GitHub release follows the check for the package and documentation on Hex.
-If the run stops at its time limit, wait for the person to approve the release on Hex.
-After approval, select **Re-run all jobs** on the page for the same run.
+The workflow creates the GitHub release before staging the package and documentation on Hex.
+The job ends after the upload succeeds; Hex approval can happen later.
+A successful job confirms upload, not approval or public availability on Hex.
 
 ## Use the workflow in a different repository
 
 1. Copy `.github/workflows/release.yml` to the default branch of the target repository.
-2. Copy `.github/cliff.toml` to the same branch.
-3. Set up the GitHub `release` environment with the signing settings above.
-4. Set up Hex Workload Identity for the target repository, `release.yml`, and the `release` environment.
-5. Use the target repository name in the release command.
+2. Set up the GitHub `release` environment with the signing settings above.
+3. Set up Hex Workload Identity for the target repository, `release.yml`, and the `release` environment.
+4. Use the target repository name in the release command.
 
 The workflow uses the repository name as the Hex package name.
 If the names are different, set the `HEX_PACKAGE_NAME` repository variable to the Hex package name.
