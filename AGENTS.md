@@ -32,9 +32,10 @@ A successful job confirms upload, not approval or public availability on Hex.
 ## Use the workflow in a different repository
 
 1. Copy `.github/workflows/release.yml` to the default branch of the target repository.
-2. Set up the GitHub `release` environment with the signing settings above.
-3. Set up Hex Workload Identity for the target repository, `release.yml`, and the `release` environment.
-4. Use the target repository name in the release command.
+2. Copy `.github/cliff.toml` to the same branch.
+3. Set up the GitHub `release` environment with the signing settings above.
+4. Set up Hex Workload Identity for the target repository, `release.yml`, and the `release` environment.
+5. Use the target repository name in the release command.
 
 The workflow uses the repository name as the Hex package name.
 If the names are different, set the `HEX_PACKAGE_NAME` repository variable to the Hex package name.
