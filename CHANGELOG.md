@@ -8,6 +8,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.12.1] - 2026-11-25
+
+### Changed
+
+- Bumped hackney and its dependencies
+- Make the Rebar3 release workflow portable
+- Rename the release GPG passphrase secret
+
+
+### Fixed
+
+- Fix release ordering and retry GitHub API failures (#61)
+
 ## [2.12.0] - 2026-11-23
 
 ### Added
@@ -323,7 +336,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.12.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.12.1...HEAD
+[2.12.1]: https://github.com/grisp/grisp_tools/compare/2.12.0...2.12.1
 [2.12.0]: https://github.com/grisp/grisp_tools/compare/2.11.6...2.12.0
 [2.11.6]: https://github.com/grisp/grisp_tools/compare/2.11.5...2.11.6
 [2.11.5]: https://github.com/grisp/grisp_tools/compare/2.11.4...2.11.5
