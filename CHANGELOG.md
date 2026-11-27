@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.12.2] - 2026-11-27
+
+### Fixed
+
+- Fix Rust SDK discovery on first Docker pull
+
 ## [2.12.1] - 2026-11-25
 
 ### Changed
@@ -336,7 +342,8 @@ and this project adheres to
 
 ## [0.2.0] - 2018-09-11
 
-[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.12.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp_tools/compare/2.12.2...HEAD
+[2.12.2]: https://github.com/grisp/grisp_tools/compare/2.12.1...2.12.2
 [2.12.1]: https://github.com/grisp/grisp_tools/compare/2.12.0...2.12.1
 [2.12.0]: https://github.com/grisp/grisp_tools/compare/2.11.6...2.12.0
 [2.11.6]: https://github.com/grisp/grisp_tools/compare/2.11.5...2.11.6
