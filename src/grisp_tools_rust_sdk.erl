@@ -154,7 +154,8 @@ absolute_paths(Config, Root) ->
 
 root({directory, Root}) -> filename:absname(unicode:characters_to_list(Root));
 root({docker, Image}) ->
-    Root = string:trim(binary_to_list(command("docker", ["run", "--rm", Image,
+    %% The port merges stderr into stdout for diagnostics. Keep pull progress out of the SDK path.
+    Root = string:trim(binary_to_list(command("docker", ["run", "--rm", "--quiet", Image,
         "sh", "-c", "printf '%s' \"$GRISP_TOOLCHAIN\""]))),
     case filename:pathtype(Root) of
         absolute -> Root;
